@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/emergency_vehicle_screen.dart';
+import 'screens/regular_vehicle_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -102,7 +103,7 @@ class _EmergencyAppHomeState extends State<EmergencyAppHome>
                 controller: _tabController,
                 children: const [
                   EmergencyVehicleScreen(),
-                  Center(child: Text('일반차량 화면이 여기에 표시됩니다')),
+                  RegularVehicleScreen(),
                 ],
               ),
             ),
