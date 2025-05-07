@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/emergency_vehicle_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,7 +42,8 @@ class EmergencyAppHome extends StatefulWidget {
   _EmergencyAppHomeState createState() => _EmergencyAppHomeState();
 }
 
-class _EmergencyAppHomeState extends State<EmergencyAppHome> with SingleTickerProviderStateMixin {
+class _EmergencyAppHomeState extends State<EmergencyAppHome>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -80,18 +82,17 @@ class _EmergencyAppHomeState extends State<EmergencyAppHome> with SingleTickerPr
               ),
               child: TabBar(
                 controller: _tabController,
-                indicatorColor: _tabController.index == 0 ? Colors.red : Colors.blue,
+                indicatorColor:
+                    _tabController.index == 0 ? Colors.red : Colors.blue,
                 indicatorWeight: 3,
-                labelColor: _tabController.index == 0 ? Colors.red : Colors.blue,
+                labelColor:
+                    _tabController.index == 0 ? Colors.red : Colors.blue,
                 unselectedLabelColor: Colors.grey,
                 labelStyle: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
-                tabs: const [
-                  Tab(text: '응급차량 모드'),
-                  Tab(text: '일반차량 모드'),
-                ],
+                tabs: const [Tab(text: '응급차량 모드'), Tab(text: '일반차량 모드')],
               ),
             ),
 
@@ -100,7 +101,7 @@ class _EmergencyAppHomeState extends State<EmergencyAppHome> with SingleTickerPr
               child: TabBarView(
                 controller: _tabController,
                 children: const [
-                  Center(child: Text('응급차량 화면이 여기에 표시됩니다')),
+                  EmergencyVehicleScreen(),
                   Center(child: Text('일반차량 화면이 여기에 표시됩니다')),
                 ],
               ),
