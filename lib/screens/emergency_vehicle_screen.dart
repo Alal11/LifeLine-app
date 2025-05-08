@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../widgets/route_info_card.dart';
 import '../widgets/emergency_alert_card.dart';
 import '../models/emergency_route.dart';
+import '../services/location_service.dart';
+import '../services/route_service.dart';
+import '../services/notification_service.dart';
+import '../services/shared_service.dart';
 
 class EmergencyVehicleScreen extends StatefulWidget {
   const EmergencyVehicleScreen({Key? key}) : super(key: key);
@@ -11,6 +15,11 @@ class EmergencyVehicleScreen extends StatefulWidget {
 }
 
 class _EmergencyVehicleScreenState extends State<EmergencyVehicleScreen> {
+  // 서비스 인스턴스
+  final LocationService _locationService = LocationService();
+  final RouteService _routeService = RouteService();
+  final NotificationService _notificationService = NotificationService();
+
   // 상태 변수들
   bool _emergencyMode = false;
   String _destination = '';
@@ -23,52 +32,154 @@ class _EmergencyVehicleScreenState extends State<EmergencyVehicleScreen> {
   String _hospitalLocation = '';
   String _routePhase = 'pickup'; // 'pickup' 또는 'hospital'
 
+  // 경로 정보
+  EmergencyRoute? _currentRoute;
+  String _estimatedTime = '계산 중...';
+  int _notifiedVehicles = 0;
+
   @override
   void initState() {
     super.initState();
+    _initializeLocation();
+    _loadSharedState();
   }
 
-  // 응급 모드 활성화 (더미 구현)
-  void _activateEmergencyMode() {
-    if (_routePhase == 'pickup' && _patientLocation.isNotEmpty) {
-      _destination = _patientLocation;
-      _calculateDummyRoute();
-    } else if (_routePhase == 'hospital' && _hospitalLocation.isNotEmpty) {
-      _destination = _hospitalLocation;
-      _calculateDummyRoute();
+  // 위치 초기화
+  Future<void> _initializeLocation() async {
+    try {
+      final position = await _locationService.getCurrentLocation();
+      if (mounted) {
+        setState(() {
+          // 위치 서비스로부터 현재 위치 갱신 가능
+          // 지금은 더미 위치를 계속 사용
+        });
+      }
+    } catch (e) {
+      print('위치 정보를 가져오는데 실패했습니다: $e');
     }
   }
 
-  // 더미 경로 계산
-  void _calculateDummyRoute() {
-    setState(() {
-      _emergencyMode = true;
-    });
+  // 공유 상태 로드
+  void _loadSharedState() {
+    final sharedService = SharedService();
 
-    // 알림 효과 시뮬레이션
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _showAlert = true;
-        });
+    // 저장된 환자 및 병원 위치 불러오기
+    setState(() {
+      _patientLocation = sharedService.patientLocation;
+      _hospitalLocation = sharedService.hospitalLocation;
+      _routePhase = sharedService.routePhase;
+
+      // 응급 모드가 활성화되어 있으면 상태 복원
+      if (sharedService.isEmergencyActive) {
+        _emergencyMode = true;
+        _estimatedTime = sharedService.estimatedTime;
+        _notifiedVehicles = sharedService.notifiedVehicles;
+        _showAlert = true;
+
+        // 현재 경로 단계에 따라 목적지 설정
+        if (_routePhase == 'pickup') {
+          _destination = _patientLocation;
+        } else {
+          _destination = _hospitalLocation;
+        }
       }
     });
   }
 
-  // 응급 모드 비활성화
+  // 응급 모드 활성화
+  void _activateEmergencyMode() async {
+    if (_routePhase == 'pickup' && _patientLocation.isNotEmpty) {
+      _destination = _patientLocation;
+      await _calculateAndActivateRoute();
+    } else if (_routePhase == 'hospital' && _hospitalLocation.isNotEmpty) {
+      _destination = _hospitalLocation;
+      await _calculateAndActivateRoute();
+    }
+  }
+
+// 경로 계산 및 알림 활성화
+  Future<void> _calculateAndActivateRoute() async {
+    setState(() {
+      _emergencyMode = true;
+    });
+
+    try {
+      // 더미 시작점과 도착점 생성 (실제로는 실제 좌표 사용)
+      final LatLng origin = LatLng(37.498095, 127.027610);
+      LatLng destination;
+      String destinationName;
+
+      if (_routePhase == 'pickup') {
+        destination = LatLng(37.504890, 127.049132); // 더미 환자 위치
+        destinationName = _patientLocation;
+      } else {
+        destination = LatLng(37.582670, 127.050630); // 더미 병원 위치
+        destinationName = _hospitalLocation;
+      }
+
+      // 경로 데이터 계산
+      final routeData = await _routeService.calculateOptimalRoute(
+          origin,
+          destination,
+          isEmergency: true
+      );
+
+      // 주변 차량에 알림 전송
+      final notifiedCount = await _notificationService.sendEmergencyAlertToNearbyVehicles(
+          'dummy_route_id',
+          '응급차량이 접근 중입니다. 길을 비켜주세요.',
+          1.0 // 1km 반경
+      );
+
+      if (mounted) {
+        setState(() {
+          _estimatedTime = routeData['estimated_time'] as String;
+          _notifiedVehicles = notifiedCount;
+          _showAlert = true;
+        });
+      }
+
+      // 공유 서비스를 통해 알림 전파
+      final sharedService = SharedService();
+      sharedService.broadcastEmergencyAlert(
+        destination: destinationName,
+        estimatedTime: _estimatedTime,
+        approachDirection: _routePhase == 'pickup' ? '소방서에서 환자 방향' : '환자에서 병원 방향',
+        notifiedVehicles: _notifiedVehicles,
+      );
+
+    } catch (e) {
+      print('경로 활성화 중 오류 발생: $e');
+
+      if (mounted) {
+        setState(() {
+          _emergencyMode = false;
+          _showAlert = false;
+        });
+      }
+    }
+  }
+
+// 응급 모드 비활성화
   void _deactivateEmergencyMode() {
     setState(() {
       _emergencyMode = false;
       _showAlert = false;
     });
+
+    // 공유 서비스를 통해 알림 취소
+    final sharedService = SharedService();
+    sharedService.cancelEmergencyAlert();
   }
 
-  // 환자 픽업 완료 후 병원 단계로 전환
+// 환자 픽업 완료 후 병원 단계로 전환
   void _switchToHospitalPhase() {
+    // 먼저 현재 응급 모드 비활성화
+    _deactivateEmergencyMode();
+
     setState(() {
       _routePhase = 'hospital';
-      _emergencyMode = false;
-      _showAlert = false;
+      _currentLocation = '$_patientLocation (환자 위치)';
     });
   }
 
@@ -104,8 +215,8 @@ class _EmergencyVehicleScreenState extends State<EmergencyVehicleScreen> {
                       child: RouteInfoCard(
                         destination: _destination,
                         routePhase: _routePhase,
-                        estimatedTime: "12분",
-                        notifiedVehicles: "27대",
+                        estimatedTime: _estimatedTime,
+                        notifiedVehicles: "$_notifiedVehicles대",
                       ),
                     ),
 
@@ -115,8 +226,8 @@ class _EmergencyVehicleScreenState extends State<EmergencyVehicleScreen> {
                       top: 16,
                       left: 16,
                       right: 16,
-                      child: const EmergencyAlertCard(
-                        message: "주변 차량 27대에 알림이 전송되었습니다",
+                      child: EmergencyAlertCard(
+                        message: "주변 차량 $_notifiedVehicles대에 알림이 전송되었습니다",
                       ),
                     ),
                 ],
