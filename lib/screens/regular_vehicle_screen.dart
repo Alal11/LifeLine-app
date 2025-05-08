@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../widgets/emergency_vehicle_alert.dart';
+import '../services/location_service.dart';
+import '../services/notification_service.dart';
+import '../services/shared_service.dart';
 
 class RegularVehicleScreen extends StatefulWidget {
   const RegularVehicleScreen({Key? key}) : super(key: key);
@@ -9,21 +13,104 @@ class RegularVehicleScreen extends StatefulWidget {
 }
 
 class _RegularVehicleScreenState extends State<RegularVehicleScreen> {
+  // 서비스 인스턴스
+  final LocationService _locationService = LocationService();
+  final NotificationService _notificationService = NotificationService();
+
   // 상태 변수들
-  bool _showEmergencyAlert = true;
+  bool _showEmergencyAlert = false;
   String _currentLocation = '강남구 행복동로';
-  String _currentSpeed = '32 km/h';
+  String _currentSpeed = '0 km/h';
+
+  // 알림 정보
+  String _estimatedArrival = '';
+  String _approachDirection = '';
+  String _emergencyDestination = '';
+
+  // 위치 구독
+  StreamSubscription? _locationSubscription;
+  StreamSubscription? _alertSubscription;
 
   @override
   void initState() {
     super.initState();
+    _initializeLocation();
+    _subscribeToEmergencyAlerts();
   }
 
-  // 알림 닫기
+// 위치 초기화 및 구독
+  Future<void> _initializeLocation() async {
+    try {
+      // 현재 위치 가져오기
+      final position = await _locationService.getCurrentLocation();
+
+      // 위치 스트림 구독
+      _locationSubscription = _locationService.getPositionStream().listen((position) {
+        if (mounted) {
+          setState(() {
+            // 속도 업데이트 (km/h로 변환)
+            _currentSpeed = '${(position.speed * 3.6).round()} km/h';
+          });
+        }
+      });
+
+    } catch (e) {
+      print('위치 정보를 가져오는데 실패했습니다: $e');
+    }
+  }
+
+// 응급차량 알림 구독
+  void _subscribeToEmergencyAlerts() {
+    // 공유 서비스로부터 응급 알림 구독
+    final sharedService = SharedService();
+    _alertSubscription = sharedService.emergencyAlertStream.listen((data) {
+      if (mounted) {
+        if (data['active'] == true) {
+          setState(() {
+            _showEmergencyAlert = true;
+            _estimatedArrival = data['estimatedTime'];
+            _approachDirection = data['approachDirection'];
+            _emergencyDestination = data['destination'];
+
+            // 알림 표시 시 효과음 재생
+            _notificationService.playAlertSound();
+          });
+        } else {
+          setState(() {
+            _showEmergencyAlert = false;
+          });
+        }
+      }
+    });
+
+    // 기존 알림 서비스 구독 (백그라운드 알림용)
+    _notificationService.getEmergencyAlerts().listen((alertData) {
+      if (mounted && !_showEmergencyAlert) {
+        setState(() {
+          _showEmergencyAlert = true;
+          _estimatedArrival = alertData['message'].split('분').first + '분 이내';
+          _approachDirection = alertData['approach_direction'];
+          _emergencyDestination = alertData['destination'];
+        });
+
+        // 알림 효과음 재생
+        _notificationService.playAlertSound();
+      }
+    });
+  }
+
+// 알림 닫기
   void _dismissAlert() {
     setState(() {
       _showEmergencyAlert = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    _alertSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -62,9 +149,9 @@ class _RegularVehicleScreenState extends State<RegularVehicleScreen> {
           // 응급차량 접근 알림
           if (_showEmergencyAlert)
             EmergencyVehicleAlert(
-              estimatedArrival: '2분 이내',
-              approachDirection: '동남쪽에서 북서쪽',
-              destination: '서울대병원 응급실',
+              estimatedArrival: _estimatedArrival,
+              approachDirection: _approachDirection,
+              destination: _emergencyDestination,
               onDismiss: _dismissAlert,
             ),
 
