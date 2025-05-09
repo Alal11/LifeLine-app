@@ -2,17 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../models/emergency_route.dart';
 import 'location_service.dart';
-
-// 지도 좌표 클래스 (Google Maps 없이 테스트용)
-class LatLng {
-  final double latitude;
-  final double longitude;
-
-  const LatLng(this.latitude, this.longitude);
-
-  @override
-  String toString() => 'LatLng($latitude, $longitude)';
-}
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // Google Maps LatLng 사용
 
 class RouteService {
   // 싱글톤 패턴 구현
@@ -41,13 +31,18 @@ class RouteService {
       final double fraction = i / steps;
 
       // 기본 경로 포인트
-      final double lat = origin.latitude + (destination.latitude - origin.latitude) * fraction;
-      final double lng = origin.longitude + (destination.longitude - origin.longitude) * fraction;
+      final double lat =
+          origin.latitude + (destination.latitude - origin.latitude) * fraction;
+      final double lng =
+          origin.longitude +
+          (destination.longitude - origin.longitude) * fraction;
 
       // 약간의 랜덤 편차 추가 (실제 도로처럼 보이게)
       final double variance = 0.002 * math.sin(fraction * math.pi);
-      final double adjustedLat = lat + variance * math.cos(fraction * 5 * math.pi);
-      final double adjustedLng = lng + variance * math.sin(fraction * 5 * math.pi);
+      final double adjustedLat =
+          lat + variance * math.cos(fraction * 5 * math.pi);
+      final double adjustedLng =
+          lng + variance * math.sin(fraction * 5 * math.pi);
 
       route.add(LatLng(adjustedLat, adjustedLng));
     }
@@ -63,10 +58,10 @@ class RouteService {
 
   // 최적의 경로 계산 (더미 구현)
   Future<Map<String, dynamic>> calculateOptimalRoute(
-      LatLng origin,
-      LatLng destination,
-      {bool isEmergency = false}
-      ) async {
+    LatLng origin,
+    LatLng destination, {
+    bool isEmergency = false,
+  }) async {
     // 경로 포인트 생성
     final List<LatLng> routePoints = await generateRoute(origin, destination);
 
@@ -101,10 +96,10 @@ class RouteService {
 
   // 응급 경로 생성
   Future<EmergencyRoute> createEmergencyRoute(
-      String baseLocation,
-      String patientLocation,
-      String hospitalLocation
-      ) async {
+    String baseLocation,
+    String patientLocation,
+    String hospitalLocation,
+  ) async {
     // 더미 구현 - 실제로는 DB에 저장하고 ID 반환
     final EmergencyRoute route = EmergencyRoute(
       baseLocation: baseLocation,
@@ -120,7 +115,10 @@ class RouteService {
   }
 
   // 경로 상태 업데이트
-  Future<void> updateRouteStatus(EmergencyRoute route, EmergencyRouteStatus status) async {
+  Future<void> updateRouteStatus(
+    EmergencyRoute route,
+    EmergencyRouteStatus status,
+  ) async {
     // 실제 구현에서는 DB 업데이트
     route.status = status;
   }
@@ -128,9 +126,13 @@ class RouteService {
   // 직선 거리 계산 (미터 단위) - 간단한 구현
   double _calculateDistance(LatLng start, LatLng end) {
     const double p = 0.017453292519943295; // Math.PI / 180
-    final double a = 0.5 - math.cos((end.latitude - start.latitude) * p) / 2 +
-        math.cos(start.latitude * p) * math.cos(end.latitude * p) *
-            (1 - math.cos((end.longitude - start.longitude) * p)) / 2;
+    final double a =
+        0.5 -
+        math.cos((end.latitude - start.latitude) * p) / 2 +
+        math.cos(start.latitude * p) *
+            math.cos(end.latitude * p) *
+            (1 - math.cos((end.longitude - start.longitude) * p)) /
+            2;
     return 12742000 * math.asin(math.sqrt(a)); // 2 * R; R = 6371 km * 1000 m
   }
 }

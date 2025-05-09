@@ -34,7 +34,9 @@ dependencies:
   firebase_messaging: ^14.1.0
   cloud_firestore: ^4.1.0
   google_maps_flutter: ^2.2.0
-  geolocator: ^9.0.2
+  geolocator: ^9.0.0  # 위치 서비스
+  geocoding: ^2.1.0    # 주소 ↔ 좌표 변환
+  provider: ^6.0.5
   flutter_polyline_points: ^1.0.0
 
   # The following adds the Cupertino Icons font to your application.

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'screens/emergency_vehicle_screen.dart';
-import 'screens/regular_vehicle_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:lifeline/viewmodels/emergency_vehicle_viewmodel.dart';
+import 'package:lifeline/viewmodels/regular_vehicle_viewmodel.dart';
+import 'package:lifeline/views/emergency_vehicle_screen.dart';
+import 'package:lifeline/views/regular_vehicle_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,104 +14,64 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'K-MASS 응급차량 알림 시스템',
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-        scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
+    return MultiProvider(
+      providers: [
+        // ViewModel들을 여기에 등록합니다
+        ChangeNotifierProvider(create: (_) => EmergencyVehicleViewModel()),
+        ChangeNotifierProvider(create: (_) => RegularVehicleViewModel()),
+      ],
+      child: MaterialApp(
+        title: '구급차 경로 알림 시스템',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
+        home: const MyHomePage(),
       ),
-      home: const EmergencyAppHome(),
     );
   }
 }
 
-class EmergencyAppHome extends StatefulWidget {
-  const EmergencyAppHome({Key? key}) : super(key: key);
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({Key? key}) : super(key: key);
 
   @override
-  _EmergencyAppHomeState createState() => _EmergencyAppHomeState();
+  _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _EmergencyAppHomeState extends State<EmergencyAppHome>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MyHomePageState extends State<MyHomePage> {
+  int _selectedIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      setState(() {});
+  static final List<Widget> _widgetOptions = <Widget>[
+    const EmergencyVehicleScreen(),
+    const RegularVehicleScreen(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
     });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 상단 탭 바
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.2),
-                    spreadRadius: 1,
-                    blurRadius: 1,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor:
-                    _tabController.index == 0 ? Colors.red : Colors.blue,
-                indicatorWeight: 3,
-                labelColor:
-                    _tabController.index == 0 ? Colors.red : Colors.blue,
-                unselectedLabelColor: Colors.grey,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-                tabs: const [Tab(text: '응급차량 모드'), Tab(text: '일반차량 모드')],
-              ),
-            ),
-
-            // 탭 콘텐츠
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: const [
-                  EmergencyVehicleScreen(),
-                  RegularVehicleScreen(),
-                ],
-              ),
-            ),
-          ],
-        ),
+      appBar: AppBar(title: const Text('구급차 경로 알림 시스템')),
+      body: _widgetOptions.elementAt(_selectedIndex),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_hospital),
+            label: '응급 차량',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.directions_car),
+            label: '일반 차량',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.amber[800],
+        onTap: _onItemTapped,
       ),
     );
   }
