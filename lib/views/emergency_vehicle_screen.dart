@@ -110,9 +110,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
 
   // 목적지 입력 UI
   Widget _buildDestinationInput(
-    BuildContext context,
-    EmergencyVehicleViewModel viewModel,
-  ) {
+      BuildContext context,
+      EmergencyVehicleViewModel viewModel,
+      ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -140,29 +140,25 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // 현재 위치 표시
+        // 출발 위치 입력 (새로 추가)
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '현재 위치',
+              '출발 위치',
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
             const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border.all(color: Colors.grey[200]!),
-                borderRadius: BorderRadius.circular(8),
+            TextField(
+              decoration: InputDecoration(
+                hintText: '출발 위치 입력 (예: 소방서 위치)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.all(12),
               ),
-              child: Text(
-                viewModel.routePhase == 'pickup'
-                    ? viewModel.currentLocation
-                    : '${viewModel.patientLocation} (환자 위치)',
-                style: const TextStyle(fontSize: 14),
-              ),
+              // 기본값 없이 빈 TextField 제공
+              onChanged: (value) {
+                viewModel.updateCurrentLocation(value);
+              },
             ),
           ],
         ),
@@ -170,22 +166,32 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
         const SizedBox(height: 16),
 
         // 목적지 입력
-        TextField(
-          decoration: InputDecoration(
-            hintText:
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              viewModel.routePhase == 'pickup' ? '환자 위치' : '병원 위치',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              decoration: InputDecoration(
+                hintText:
                 viewModel.routePhase == 'pickup'
-                    ? '환자 위치 입력 (예: 강남역 2번 출구)'
-                    : '병원 위치 입력 (예: 서울대병원 응급실)',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.all(12),
-          ),
-          onChanged: (value) {
-            if (viewModel.routePhase == 'pickup') {
-              viewModel.updatePatientLocation(value);
-            } else {
-              viewModel.updateHospitalLocation(value);
-            }
-          },
+                    ? '환자 위치 입력 (예: 천안시 신부동 352-7)'
+                    : '병원 위치 입력 (예: 천안충무병원 응급실)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+              onChanged: (value) {
+                if (viewModel.routePhase == 'pickup') {
+                  viewModel.updatePatientLocation(value);
+                } else {
+                  viewModel.updateHospitalLocation(value);
+                }
+              },
+            ),
+          ],
         ),
 
         const SizedBox(height: 16),
@@ -195,12 +201,12 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
           width: double.infinity,
           child: ElevatedButton(
             onPressed:
-                (viewModel.routePhase == 'pickup' &&
-                            viewModel.patientLocation.isNotEmpty) ||
-                        (viewModel.routePhase == 'hospital' &&
-                            viewModel.hospitalLocation.isNotEmpty)
-                    ? () => viewModel.activateEmergencyMode()
-                    : null,
+            (viewModel.routePhase == 'pickup' &&
+                viewModel.patientLocation.isNotEmpty) ||
+                (viewModel.routePhase == 'hospital' &&
+                    viewModel.hospitalLocation.isNotEmpty)
+                ? () => viewModel.activateEmergencyMode()
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,

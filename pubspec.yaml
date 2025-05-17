@@ -38,6 +38,7 @@ dependencies:
   geocoding: ^2.1.0    # 주소 ↔ 좌표 변환
   provider: ^6.0.5
   flutter_polyline_points: ^1.0.0
+  http: ^0.13.5
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

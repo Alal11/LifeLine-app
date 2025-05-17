@@ -8,6 +8,7 @@ import '../services/location_service.dart';
 import '../services/route_service.dart' hide LatLng;
 import '../services/notification_service.dart';
 import '../services/shared_service.dart';
+import '../services/road_network_service.dart';
 import 'dart:math' as math;
 
 class EmergencyVehicleViewModel extends ChangeNotifier {
@@ -16,6 +17,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   final RouteService _routeService = RouteService();
   final NotificationService _notificationService = NotificationService();
   final SharedService _sharedService = SharedService();
+  final RoadNetworkService _roadNetworkService = RoadNetworkService();
 
   // 지도 관련 변수
   GoogleMapController? mapController;
@@ -31,6 +33,8 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   // 상태 변수들
   bool emergencyMode = false;
   bool showAlert = false;
+  bool isCalculatingRoute = false;
+  String routeCalculationError = '';
   EmergencyRouteStatus routeStatus = EmergencyRouteStatus.ready;
 
   // 구급차 경로 정보
@@ -55,7 +59,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     await _loadSharedState();
   }
 
-  // 위치 초기화
+// 위치 초기화
   Future<void> _initializeLocation() async {
     try {
       // 위치 서비스 활성화 확인
@@ -66,8 +70,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       }
 
       // 위치 권한 확인
-      geo.LocationPermission permission =
-          await geo.Geolocator.checkPermission();
+      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -83,8 +86,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
       // 현재 위치 가져오기
       final position = await geo.Geolocator.getCurrentPosition();
-
       currentLocationCoord = LatLng(position.latitude, position.longitude);
+
+      // 출발 위치의 기본값 설정 제거 (빈 문자열로 설정)
+      currentLocation = '';
 
       // 초기 마커 설정
       markers = {
@@ -92,7 +97,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           markerId: const MarkerId('current_location'),
           position: currentLocationCoord!,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: '현재 위치 (소방서)'),
+          infoWindow: const InfoWindow(title: '현재 위치'),
         ),
       };
 
@@ -132,6 +137,44 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     } catch (e) {
       print('주소 변환 중 오류 발생: $e');
       return null;
+    }
+  }
+
+  // 출발 위치 업데이트
+  Future<void> updateCurrentLocation(String value) async {
+    currentLocation = value;
+    notifyListeners();
+
+    // 주소를 좌표로 변환
+    final coordinates = await _geocodeAddress(value);
+    if (coordinates != null) {
+      currentLocationCoord = coordinates;
+
+      // 마커 업데이트
+      if (markers.isNotEmpty) {
+        final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
+        updatedMarkers.removeWhere((marker) => marker.markerId == MarkerId('origin'));
+        updatedMarkers.add(
+          Marker(
+            markerId: const MarkerId('origin'),
+            position: currentLocationCoord!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            infoWindow: InfoWindow(title: '출발 위치: $value'),
+          ),
+        );
+        markers = updatedMarkers;
+      }
+
+      // 카메라 위치 업데이트
+      if (mapController != null) {
+        mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: currentLocationCoord!, zoom: 15.0),
+          ),
+        );
+      }
+
+      notifyListeners();
     }
   }
 
@@ -238,6 +281,100 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       showAlert = false;
       notifyListeners();
     }
+  }
+
+  // 도로망 고려한 경로 계산 메서드
+  Future<void> calculateOptimizedRoute() async {
+    isCalculatingRoute = true;
+    routeCalculationError = '';
+    notifyListeners();
+
+    try {
+      // 출발지와 목적지 설정
+      LatLng origin;
+      LatLng destination;
+
+      if (routePhase == 'pickup') {
+        origin = currentLocationCoord!;
+        destination = patientLocationCoord!;
+      } else {
+        origin = patientLocationCoord!;
+        destination = hospitalLocationCoord!;
+      }
+
+      // 도로망 데이터 가져오기
+      final roadNetworkData = await _roadNetworkService.getRoadNetwork(
+        dprtrLinkId: 1000001, // TODO: 출발 링크 ID
+        arriveLinkId: 1000005, // TODO: 도착 링크 ID
+      );
+
+      // 도로망 데이터 기반 경로 생성
+      List<LatLng> routePoints = _generateRouteFromNetworkData(roadNetworkData);
+
+      // 경로 표시
+      _displayRoute(origin, destination);
+
+      // 상태 업데이트
+      estimatedTime = _calculateEstimatedTime(routePoints);
+      emergencyMode = true;
+      showAlert = true;
+
+      notifyListeners();
+    } catch (e) {
+      routeCalculationError = '경로 계산 중 오류가 발생했습니다: $e';
+      print('경로 계산 오류: $e');
+    } finally {
+      isCalculatingRoute = false;
+      notifyListeners();
+    }
+  }
+
+  // 도로망 데이터로부터 경로 생성
+  List<LatLng> _generateRouteFromNetworkData(Map<String, dynamic> networkData) {
+    List<LatLng> routePoints = [];
+
+    // 네트워크 데이터에서 경로 포인트 추출
+    if (networkData.containsKey('path') && networkData['path'] is List) {
+      for (var point in networkData['path']) {
+        if (point.containsKey('lat') && point.containsKey('lng')) {
+          routePoints.add(LatLng(point['lat'], point['lng']));
+        }
+      }
+    }
+
+    return routePoints;
+  }
+
+  // 예상 시간 계산
+  String _calculateEstimatedTime(List<LatLng> routePoints) {
+    // 경로 길이 계산
+    double totalDistance = 0.0;
+    for (int i = 0; i < routePoints.length - 1; i++) {
+      totalDistance += _calculateDistance(routePoints[i], routePoints[i + 1]);
+    }
+
+    // 응급 차량 평균 속도 가정 (km/h)
+    const double avgSpeed = 60.0;
+
+    // 시간 계산 (분 단위)
+    int estimatedMinutes = ((totalDistance / 1000) / avgSpeed * 60).round();
+
+    return '$estimatedMinutes분';
+  }
+
+  double _calculateDistance(LatLng a, LatLng b) {
+    const double earthRadius = 6371000;
+    double dLat = (b.latitude - a.latitude) * math.pi / 180.0;
+    double dLng = (b.longitude - a.longitude) * math.pi / 180.0;
+    double lat1 = a.latitude * math.pi / 180.0;
+    double lat2 = b.latitude * math.pi / 180.0;
+
+    double aCalc =
+        math.pow(math.sin(dLat / 2), 2) +
+        math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
+    double c = 2 * math.atan2(math.sqrt(aCalc), math.sqrt(1 - aCalc));
+
+    return earthRadius * c;
   }
 
   // 지도에 경로 표시
