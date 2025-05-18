@@ -64,6 +64,8 @@ class _RegularVehicleScreenContent extends StatelessWidget {
               estimatedArrival: viewModel.estimatedArrival,
               approachDirection: viewModel.approachDirection,
               destination: viewModel.emergencyDestination,
+              patientCondition: viewModel.patientCondition, // 추가
+              patientSeverity: viewModel.patientSeverity, // 추가
               onDismiss: () => viewModel.dismissAlert(),
             ),
 
@@ -167,23 +169,78 @@ class _RegularVehicleScreenContent extends StatelessWidget {
 
                 // 상태 메시지
                 viewModel.showEmergencyAlert
-                    ? const Text(
-                      '응급차량이 접근 중입니다. 우측으로 차량을 이동해 주세요.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                    ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.3),
+                        ),
                       ),
-                    )
-                    : Text(
-                      '주변에 응급상황이 없습니다.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber,
+                            color: _getSeverityColor(viewModel.patientSeverity),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${viewModel.patientCondition} (${viewModel.patientSeverity}) 환자 이송 중',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _getSeverityColor(viewModel.patientSeverity),
+                                  ),
+                                ),
+                                const Text(
+                                  '응급차량이 접근 중입니다. 우측으로 차량을 이동해 주세요.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                )
+                    : Text(
+                  '주변에 응급상황이 없습니다.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  // 중증도에 따른 색상 반환 메서드
+  Color _getSeverityColor(String severity) {
+    switch (severity) {
+      case '경증':
+        return Colors.green;
+      case '중등':
+        return Colors.orange;
+      case '중증':
+        return Colors.red;
+      case '사망':
+        return Colors.black;
+      default:
+        return Colors.blue;
+    }
   }
 }

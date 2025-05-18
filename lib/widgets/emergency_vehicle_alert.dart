@@ -4,6 +4,8 @@ class EmergencyVehicleAlert extends StatelessWidget {
   final String estimatedArrival;
   final String approachDirection;
   final String destination;
+  final String patientCondition; // 추가
+  final String patientSeverity; // 추가
   final VoidCallback onDismiss;
 
   const EmergencyVehicleAlert({
@@ -11,6 +13,8 @@ class EmergencyVehicleAlert extends StatelessWidget {
     required this.estimatedArrival,
     required this.approachDirection,
     required this.destination,
+    required this.patientCondition, // 추가
+    required this.patientSeverity, // 추가
     required this.onDismiss,
   }) : super(key: key);
 
@@ -52,6 +56,27 @@ class EmergencyVehicleAlert extends StatelessWidget {
                   constraints: const BoxConstraints(),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // 환자 상태 정보 (추가)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: _getSeverityColor(patientSeverity).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "$patientCondition 환자 ($patientSeverity) 이송 중",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
 
             const SizedBox(height: 12),
@@ -185,5 +210,21 @@ class EmergencyVehicleAlert extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // 중증도에 따른 색상 반환 메서드
+  Color _getSeverityColor(String severity) {
+    switch (severity) {
+      case '경증':
+        return Colors.green[700]!;
+      case '중등':
+        return Colors.orange[700]!;
+      case '중증':
+        return Colors.red[900]!;
+      case '사망':
+        return Colors.black;
+      default:
+        return Colors.blue[700]!;
+    }
   }
 }

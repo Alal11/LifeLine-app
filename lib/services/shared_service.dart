@@ -1,3 +1,5 @@
+// shared_service.dart
+
 import 'dart:async';
 
 class SharedService {
@@ -19,6 +21,10 @@ class SharedService {
   int _notifiedVehicles = 0;
   String _approachDirection = '';
 
+  // 환자 상태 관련 변수 추가
+  String _patientCondition = '';
+  String _patientSeverity = '';
+
   // 알림 상태 getter
   bool get isEmergencyActive => _emergencyModeActive;
   String get patientLocation => _patientLocation;
@@ -27,6 +33,8 @@ class SharedService {
   String get estimatedTime => _estimatedTime;
   int get notifiedVehicles => _notifiedVehicles;
   String get approachDirection => _approachDirection;
+  String get patientCondition => _patientCondition;
+  String get patientSeverity => _patientSeverity;
 
   // 응급 알림 스트림 컨트롤러
   final _emergencyAlertController = StreamController<Map<String, dynamic>>.broadcast();
@@ -53,12 +61,16 @@ class SharedService {
     required String estimatedTime,
     required String approachDirection,
     required int notifiedVehicles,
+    required String patientCondition,  // 추가
+    required String patientSeverity,   // 추가
   }) {
     // 상태 저장
     _emergencyModeActive = true;
     _estimatedTime = estimatedTime;
     _approachDirection = approachDirection;
     _notifiedVehicles = notifiedVehicles;
+    _patientCondition = patientCondition;
+    _patientSeverity = patientSeverity;
 
     if (_routePhase == 'pickup') {
       _patientLocation = destination;
@@ -73,6 +85,8 @@ class SharedService {
       'estimatedTime': estimatedTime,
       'approachDirection': approachDirection,
       'notifiedVehicles': notifiedVehicles,
+      'patientCondition': patientCondition,
+      'patientSeverity': patientSeverity,
     });
   }
 

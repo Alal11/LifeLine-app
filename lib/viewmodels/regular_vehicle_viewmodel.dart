@@ -17,6 +17,10 @@ class RegularVehicleViewModel extends ChangeNotifier {
   String currentLocation = '강남구 행복동로';
   String currentSpeed = '0 km/h';
 
+  // 환자 상태 변수 추가
+  String patientCondition = '';
+  String patientSeverity = '';
+
   // 알림 정보
   String estimatedArrival = '';
   String approachDirection = '';
@@ -105,6 +109,8 @@ class RegularVehicleViewModel extends ChangeNotifier {
         estimatedArrival = data['estimatedTime'];
         approachDirection = data['approachDirection'];
         emergencyDestination = data['destination'];
+        patientCondition = data['patientCondition'];
+        patientSeverity = data['patientSeverity'];
 
         // 알림 표시 시 효과음 재생
         _notificationService.playAlertSound();

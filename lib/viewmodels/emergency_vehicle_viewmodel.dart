@@ -1,3 +1,5 @@
+// emergency_vehicle_viewmodel.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -38,10 +40,30 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   EmergencyRouteStatus routeStatus = EmergencyRouteStatus.ready;
 
   // 구급차 경로 정보
-  String currentLocation = '소방서 (강남119안전센터)';
+  String currentLocation = ''; // 출발 위치 - 빈 문자열로 시작
   String patientLocation = '';
   String hospitalLocation = '';
   String routePhase = 'pickup'; // 'pickup' 또는 'hospital'
+
+  // 환자 상태 관련 변수 추가
+  String patientCondition = '';
+  String patientSeverity = '중증';
+
+  // 환자 상태 옵션 (드롭다운에 표시될 목록)
+  List<String> patientConditionOptions = [
+    '심장마비',
+    '뇌출혈',
+    '호흡곤란',
+    '다발성 외상',
+    '골절',
+    '의식불명',
+    '심한 출혈',
+    '화상',
+    '중독',
+    '기타'
+  ];
+
+  List<String> patientSeverityOptions = ['경증', '중등', '중증', '사망'];
 
   // 경로 정보
   EmergencyRoute? currentRoute;
@@ -59,7 +81,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     await _loadSharedState();
   }
 
-// 위치 초기화
+  // 위치 초기화
   Future<void> _initializeLocation() async {
     try {
       // 위치 서비스 활성화 확인
@@ -70,7 +92,8 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       }
 
       // 위치 권한 확인
-      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+      geo.LocationPermission permission =
+      await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -86,9 +109,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
       // 현재 위치 가져오기
       final position = await geo.Geolocator.getCurrentPosition();
+
       currentLocationCoord = LatLng(position.latitude, position.longitude);
 
-      // 출발 위치의 기본값 설정 제거 (빈 문자열로 설정)
+      // 현재 위치를 빈 문자열로 설정
       currentLocation = '';
 
       // 초기 마커 설정
@@ -153,10 +177,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       // 마커 업데이트
       if (markers.isNotEmpty) {
         final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
-        updatedMarkers.removeWhere((marker) => marker.markerId == MarkerId('origin'));
+        updatedMarkers.removeWhere((marker) => marker.markerId == const MarkerId('current_location'));
         updatedMarkers.add(
           Marker(
-            markerId: const MarkerId('origin'),
+            markerId: const MarkerId('current_location'),
             position: currentLocationCoord!,
             icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
             infoWindow: InfoWindow(title: '출발 위치: $value'),
@@ -210,8 +234,44 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     }
   }
 
+  // 환자 상태 업데이트 메서드
+  void updatePatientCondition(String condition) {
+    patientCondition = condition;
+    notifyListeners();
+  }
+
+  // 환자 중증도 업데이트 메서드
+  void updatePatientSeverity(String severity) {
+    patientSeverity = severity;
+    notifyListeners();
+  }
+
   // 응급 모드 활성화
   Future<void> activateEmergencyMode() async {
+    // 필수 입력값 확인
+    if (currentLocation.isEmpty) {
+      print('출발 위치를 입력해주세요.');
+      return;
+    }
+
+    if (routePhase == 'pickup') {
+      if (patientLocation.isEmpty) {
+        print('환자 위치를 입력해주세요.');
+        return;
+      }
+
+      if (patientCondition.isEmpty) {
+        print('환자 상태를 선택해주세요.');
+        return;
+      }
+    } else {
+      // hospital 단계
+      if (hospitalLocation.isEmpty) {
+        print('병원 위치를 입력해주세요.');
+        return;
+      }
+    }
+
     await calculateAndActivateRoute();
   }
 
@@ -254,26 +314,28 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         isEmergency: true,
       );
 
-      // 주변 차량에 알림 전송
+      // 주변 차량에 알림 전송 - 환자 상태 정보를 포함한 메시지
       final notifiedCount = await _notificationService
           .sendEmergencyAlertToNearbyVehicles(
-            'dummy_route_id',
-            '응급차량이 접근 중입니다. 길을 비켜주세요.',
-            1.0, // 1km 반경
-          );
+        'dummy_route_id',
+        '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
+        1.0, // 1km 반경
+      );
 
       estimatedTime = routeData['estimated_time'] as String;
       notifiedVehicles = notifiedCount;
       showAlert = true;
       notifyListeners();
 
-      // 공유 서비스를 통해 알림 전파
+      // 공유 서비스를 통해 알림 전파 - 환자 상태 정보 포함
       _sharedService.broadcastEmergencyAlert(
         destination: destinationName,
         estimatedTime: estimatedTime,
         approachDirection:
-            routePhase == 'pickup' ? '소방서에서 환자 방향' : '환자에서 병원 방향',
+        routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
         notifiedVehicles: notifiedVehicles,
+        patientCondition: patientCondition,
+        patientSeverity: patientSeverity,
       );
     } catch (e) {
       print('경로 활성화 중 오류 발생: $e');
@@ -371,7 +433,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
     double aCalc =
         math.pow(math.sin(dLat / 2), 2) +
-        math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
+            math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
     double c = 2 * math.atan2(math.sqrt(aCalc), math.sqrt(1 - aCalc));
 
     return earthRadius * c;
@@ -385,7 +447,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       position: origin,
       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
       infoWindow: InfoWindow(
-        title: routePhase == 'pickup' ? '현재 위치 (소방서)' : '환자 위치',
+        title: routePhase == 'pickup' ? '출발 위치: $currentLocation' : '환자 위치',
       ),
     );
 
@@ -442,7 +504,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           origin.latitude + (destination.latitude - origin.latitude) * fraction;
       double lng =
           origin.longitude +
-          (destination.longitude - origin.longitude) * fraction;
+              (destination.longitude - origin.longitude) * fraction;
 
       // 약간의 변형 추가 (실제 도로처럼 보이게)
       double variance = 0.001 * math.sin(fraction * math.pi);
@@ -467,7 +529,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         markerId: const MarkerId('current_location'),
         position: currentLocationCoord!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: '현재 위치'),
+        infoWindow: InfoWindow(title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}'),
       ),
     };
     polylines = {};
@@ -491,7 +553,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     deactivateEmergencyMode();
 
     routePhase = 'hospital';
-    currentLocation = '$patientLocation (환자 위치)';
+    currentLocation = patientLocation;
 
     // 현재 위치를 환자 위치로 업데이트
     currentLocationCoord = patientLocationCoord;
