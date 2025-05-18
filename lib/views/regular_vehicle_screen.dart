@@ -35,22 +35,28 @@ class _RegularVehicleScreenContent extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: Stack(
                 children: [
-                  // 실제 Google Map으로 교체
-                  GoogleMap(
-                    initialCameraPosition: viewModel.initialCameraPosition,
-                    onMapCreated: (controller) {
-                      viewModel.setMapController(controller);
+                  // Google Map
+                  GestureDetector(
+                    onTap: () {
+                      // 지도 탭 이벤트 처리
                     },
-                    markers: viewModel.markers,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    zoomControlsEnabled: true,
-                    mapToolbarEnabled: false,
+                    child: GoogleMap(
+                      initialCameraPosition: viewModel.initialCameraPosition,
+                      onMapCreated: (controller) {
+                        viewModel.setMapController(controller);
+                      },
+                      markers: viewModel.markers,
+                      polylines: viewModel.polylines,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      zoomControlsEnabled: true,
+                      zoomGesturesEnabled: true,
+                      scrollGesturesEnabled: true,
+                      rotateGesturesEnabled: true,
+                      tiltGesturesEnabled: true,
+                      mapToolbarEnabled: true,
+                    ),
                   ),
-
-                  // 응급차량 경로 오버레이 (반투명 블루)
-                  if (viewModel.showEmergencyAlert)
-                    Container(color: Colors.blue.withOpacity(0.1)),
                 ],
               ),
             ),
@@ -79,7 +85,7 @@ class _RegularVehicleScreenContent extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withAlpha((0.1 * 255).round()),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -176,10 +182,10 @@ class _RegularVehicleScreenContent extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.1),
+                        color: _getSeverityColor(viewModel.patientSeverity).withAlpha((0.1 * 255).round()),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.3),
+                          color: _getSeverityColor(viewModel.patientSeverity).withAlpha((0.3 * 255).round()),
                         ),
                       ),
                       child: Row(

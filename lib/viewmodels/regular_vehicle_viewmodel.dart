@@ -11,6 +11,8 @@ class RegularVehicleViewModel extends ChangeNotifier {
   final LocationService _locationService = LocationService();
   final NotificationService _notificationService = NotificationService();
   final SharedService _sharedService = SharedService();
+  Set<Polyline> polylines = {};
+
 
   // 상태 변수들
   bool showEmergencyAlert = false;

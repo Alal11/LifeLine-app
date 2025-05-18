@@ -564,7 +564,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         markerId: const MarkerId('current_location'),
         position: currentLocationCoord!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: '현재 위치 (환자)'),
+        infoWindow: InfoWindow(title: '현재 위치 (환자): $patientLocation'),
       ),
     };
 

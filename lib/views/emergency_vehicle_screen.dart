@@ -36,17 +36,26 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
               child: Stack(
                 children: [
                   // Google Map
-                  GoogleMap(
-                    initialCameraPosition: viewModel.initialCameraPosition,
-                    onMapCreated: (controller) {
-                      viewModel.setMapController(controller);
+                  GestureDetector(
+                    onTap: () {
+                      // 지도 탭 이벤트 처리
                     },
-                    markers: viewModel.markers,
-                    polylines: viewModel.polylines,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    zoomControlsEnabled: true,
-                    mapToolbarEnabled: false,
+                    child: GoogleMap(
+                      initialCameraPosition: viewModel.initialCameraPosition,
+                      onMapCreated: (controller) {
+                        viewModel.setMapController(controller);
+                      },
+                      markers: viewModel.markers,
+                      polylines: viewModel.polylines,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      zoomControlsEnabled: true,
+                      zoomGesturesEnabled: true,
+                      scrollGesturesEnabled: true,
+                      rotateGesturesEnabled: true,
+                      tiltGesturesEnabled: true,
+                      mapToolbarEnabled: true,
+                    ),
                   ),
 
                   // 응급 모드 활성화 시 경로 정보 카드
@@ -57,9 +66,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                       right: 16,
                       child: RouteInfoCard(
                         destination:
-                        viewModel.routePhase == 'pickup'
-                            ? viewModel.patientLocation
-                            : viewModel.hospitalLocation,
+                            viewModel.routePhase == 'pickup'
+                                ? viewModel.patientLocation
+                                : viewModel.hospitalLocation,
                         routePhase: viewModel.routePhase,
                         estimatedTime: viewModel.estimatedTime,
                         notifiedVehicles: "${viewModel.notifiedVehicles}대",
@@ -76,7 +85,7 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                       right: 16,
                       child: EmergencyAlertCard(
                         message:
-                        "주변 차량 ${viewModel.notifiedVehicles}대에 알림이 전송되었습니다",
+                            "주변 차량 ${viewModel.notifiedVehicles}대에 알림이 전송되었습니다",
                         patientCondition: viewModel.patientCondition,
                         patientSeverity: viewModel.patientSeverity,
                       ),
@@ -95,7 +104,7 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withAlpha((0.8 * 255).round()),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -103,9 +112,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
             ),
             padding: const EdgeInsets.all(16),
             child:
-            !viewModel.emergencyMode
-                ? _buildDestinationInput(context, viewModel)
-                : _buildActiveEmergencyControls(context, viewModel),
+                !viewModel.emergencyMode
+                    ? _buildDestinationInput(context, viewModel)
+                    : _buildActiveEmergencyControls(context, viewModel),
           ),
         ],
       ),
@@ -114,9 +123,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
 
   // 목적지 입력 UI
   Widget _buildDestinationInput(
-      BuildContext context,
-      EmergencyVehicleViewModel viewModel,
-      ) {
+    BuildContext context,
+    EmergencyVehicleViewModel viewModel,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -156,11 +165,27 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
             TextField(
               decoration: InputDecoration(
                 hintText: '출발 위치 입력 (예: 소방서 위치)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 contentPadding: const EdgeInsets.all(12),
+                // 병원 이동 단계에서는 읽기 전용으로 설정
+                filled: viewModel.routePhase == 'hospital',
+                fillColor:
+                    viewModel.routePhase == 'hospital'
+                        ? Colors.grey[200]
+                        : null,
               ),
+              // 병원 이동 단계에서는 환자 위치로 고정하고 수정 불가능하도록 설정
+              controller: TextEditingController(
+                text: viewModel.currentLocation,
+              ),
+              enabled: viewModel.routePhase != 'hospital', // 병원 이동 단계에서는 비활성화
               onChanged: (value) {
-                viewModel.updateCurrentLocation(value);
+                if (viewModel.routePhase != 'hospital') {
+                  // 병원 이동 단계가 아닐 때만 수정 가능
+                  viewModel.updateCurrentLocation(value);
+                }
               },
             ),
           ],
@@ -180,10 +205,12 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
             TextField(
               decoration: InputDecoration(
                 hintText:
-                viewModel.routePhase == 'pickup'
-                    ? '환자 위치 입력 (예: 천안시 신부동 352-7)'
-                    : '병원 위치 입력 (예: 천안충무병원 응급실)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    viewModel.routePhase == 'pickup'
+                        ? '환자 위치 입력 (예: 천안시 신부동 352-7)'
+                        : '병원 위치 입력 (예: 천안충무병원 응급실)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 contentPadding: const EdgeInsets.all(12),
               ),
               onChanged: (value) {
@@ -222,15 +249,17 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                   ),
                   isExpanded: true,
                   hint: const Text('환자 상태 선택'),
-                  value: viewModel.patientCondition.isEmpty
-                      ? null
-                      : viewModel.patientCondition,
-                  items: viewModel.patientConditionOptions.map((condition) {
-                    return DropdownMenuItem(
-                      value: condition,
-                      child: Text(condition),
-                    );
-                  }).toList(),
+                  value:
+                      viewModel.patientCondition.isEmpty
+                          ? null
+                          : viewModel.patientCondition,
+                  items:
+                      viewModel.patientConditionOptions.map((condition) {
+                        return DropdownMenuItem(
+                          value: condition,
+                          child: Text(condition),
+                        );
+                      }).toList(),
                   onChanged: (value) {
                     if (value != null) {
                       viewModel.updatePatientCondition(value);
@@ -253,44 +282,50 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Row(
-                children: viewModel.patientSeverityOptions.map((severity) {
-                  bool isSelected = viewModel.patientSeverity == severity;
-                  Color backgroundColor = isSelected
-                      ? _getSeverityColor(severity)
-                      : Colors.grey[100]!;
-                  Color textColor = isSelected ? Colors.white : Colors.black87;
+                children:
+                    viewModel.patientSeverityOptions.map((severity) {
+                      bool isSelected = viewModel.patientSeverity == severity;
+                      Color backgroundColor =
+                          isSelected
+                              ? _getSeverityColor(severity)
+                              : Colors.grey[100]!;
+                      Color textColor =
+                          isSelected ? Colors.white : Colors.black87;
 
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: InkWell(
-                        onTap: () => viewModel.updatePatientSeverity(severity),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: backgroundColor,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.transparent
-                                  : Colors.grey[300]!,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            severity,
-                            style: TextStyle(
-                              color: textColor,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: InkWell(
+                            onTap:
+                                () => viewModel.updatePatientSeverity(severity),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: backgroundColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color:
+                                      isSelected
+                                          ? Colors.transparent
+                                          : Colors.grey[300]!,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                severity,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               ),
             ],
           ),
@@ -303,15 +338,15 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
           width: double.infinity,
           child: ElevatedButton(
             onPressed:
-            (viewModel.routePhase == 'pickup' &&
-                viewModel.patientLocation.isNotEmpty &&
-                viewModel.currentLocation.isNotEmpty &&
-                viewModel.patientCondition.isNotEmpty) ||
-                (viewModel.routePhase == 'hospital' &&
-                    viewModel.hospitalLocation.isNotEmpty &&
-                    viewModel.currentLocation.isNotEmpty)
-                ? () => viewModel.activateEmergencyMode()
-                : null,
+                (viewModel.routePhase == 'pickup' &&
+                            viewModel.patientLocation.isNotEmpty &&
+                            viewModel.currentLocation.isNotEmpty &&
+                            viewModel.patientCondition.isNotEmpty) ||
+                        (viewModel.routePhase == 'hospital' &&
+                            viewModel.hospitalLocation.isNotEmpty &&
+                            viewModel.currentLocation.isNotEmpty)
+                    ? () => viewModel.activateEmergencyMode()
+                    : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -333,9 +368,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
 
   // 활성화된 응급 모드 UI
   Widget _buildActiveEmergencyControls(
-      BuildContext context,
-      EmergencyVehicleViewModel viewModel,
-      ) {
+    BuildContext context,
+    EmergencyVehicleViewModel viewModel,
+  ) {
     return Column(
       children: [
         // 헤더
@@ -382,10 +417,14 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.1),
+              color: _getSeverityColor(
+                viewModel.patientSeverity,
+              ).withAlpha((0.1 * 255).round()),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.3),
+                color: _getSeverityColor(
+                  viewModel.patientSeverity,
+                ).withAlpha((0.3 * 255).round()),
               ),
             ),
             child: Column(
@@ -402,7 +441,10 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: _getSeverityColor(viewModel.patientSeverity),
                         borderRadius: BorderRadius.circular(4),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
 
 // 더미 위치 데이터 타입
 class Position {
