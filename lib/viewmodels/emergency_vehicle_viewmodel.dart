@@ -11,6 +11,8 @@ import '../services/route_service.dart' hide LatLng;
 import '../services/notification_service.dart';
 import '../services/shared_service.dart';
 import '../services/road_network_service.dart';
+import '../services/hospital_service.dart';
+import '../services/optimal_route_service.dart';
 import 'dart:math' as math;
 
 class EmergencyVehicleViewModel extends ChangeNotifier {
@@ -20,6 +22,14 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   final NotificationService _notificationService = NotificationService();
   final SharedService _sharedService = SharedService();
   final RoadNetworkService _roadNetworkService = RoadNetworkService();
+  final OptimalRouteService _optimalRouteService = OptimalRouteService();
+
+  final TextEditingController patientLocationController =
+      TextEditingController();
+  final TextEditingController hospitalLocationController =
+      TextEditingController();
+  final TextEditingController currentLocationController =
+      TextEditingController();
 
   // 지도 관련 변수
   GoogleMapController? mapController;
@@ -60,10 +70,15 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     '심한 출혈',
     '화상',
     '중독',
-    '기타'
+    '기타',
   ];
 
   List<String> patientSeverityOptions = ['경증', '중등', '중증', '사망'];
+
+  // 추천 병원 목록 (새로 추가)
+  List<Hospital> recommendedHospitals = [];
+  Hospital? selectedHospital;
+  bool isLoadingHospitals = false;
 
   // 경로 정보
   EmergencyRoute? currentRoute;
@@ -76,9 +91,15 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   LatLng? hospitalLocationCoord;
 
   // 초기화
+  @override
   Future<void> initialize() async {
     await _initializeLocation();
     await _loadSharedState();
+
+    // 컨트롤러 초기화 및 연결
+    currentLocationController.text = currentLocation;
+    patientLocationController.text = patientLocation;
+    hospitalLocationController.text = hospitalLocation;
   }
 
   // 위치 초기화
@@ -93,7 +114,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
       // 위치 권한 확인
       geo.LocationPermission permission =
-      await geo.Geolocator.checkPermission();
+          await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -177,12 +198,16 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       // 마커 업데이트
       if (markers.isNotEmpty) {
         final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
-        updatedMarkers.removeWhere((marker) => marker.markerId == const MarkerId('current_location'));
+        updatedMarkers.removeWhere(
+          (marker) => marker.markerId == const MarkerId('current_location'),
+        );
         updatedMarkers.add(
           Marker(
             markerId: const MarkerId('current_location'),
             position: currentLocationCoord!,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
             infoWindow: InfoWindow(title: '출발 위치: $value'),
           ),
         );
@@ -204,17 +229,25 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
   // 환자 위치 입력 시 좌표 변환
   Future<void> updatePatientLocation(String value) async {
-    patientLocation = value;
-    notifyListeners();
-
-    // 공유 서비스에 위치 정보 저장
-    _sharedService.setPatientLocation(value);
-
-    // 주소를 좌표로 변환
-    final coordinates = await _geocodeAddress(value);
-    if (coordinates != null) {
-      patientLocationCoord = coordinates;
+    if (patientLocation != value) {
+      patientLocation = value;
+      // 컨트롤러 값도 동기화
+      if (patientLocationController.text != value) {
+        patientLocationController.text = value;
+      }
       notifyListeners();
+
+      // 공유 서비스에 위치 정보 저장
+      _sharedService.setPatientLocation(value);
+
+      // 주소를 좌표로 변환
+      if (value.isNotEmpty) {
+        final coordinates = await _geocodeAddress(value);
+        if (coordinates != null) {
+          patientLocationCoord = coordinates;
+          notifyListeners();
+        }
+      }
     }
   }
 
@@ -317,10 +350,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       // 주변 차량에 알림 전송 - 환자 상태 정보를 포함한 메시지
       final notifiedCount = await _notificationService
           .sendEmergencyAlertToNearbyVehicles(
-        'dummy_route_id',
-        '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
-        1.0, // 1km 반경
-      );
+            'dummy_route_id',
+            '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
+            1.0, // 1km 반경
+          );
 
       estimatedTime = routeData['estimated_time'] as String;
       notifiedVehicles = notifiedCount;
@@ -332,7 +365,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         destination: destinationName,
         estimatedTime: estimatedTime,
         approachDirection:
-        routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
+            routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
         notifiedVehicles: notifiedVehicles,
         patientCondition: patientCondition,
         patientSeverity: patientSeverity,
@@ -433,7 +466,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
     double aCalc =
         math.pow(math.sin(dLat / 2), 2) +
-            math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
+        math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
     double c = 2 * math.atan2(math.sqrt(aCalc), math.sqrt(1 - aCalc));
 
     return earthRadius * c;
@@ -504,7 +537,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           origin.latitude + (destination.latitude - origin.latitude) * fraction;
       double lng =
           origin.longitude +
-              (destination.longitude - origin.longitude) * fraction;
+          (destination.longitude - origin.longitude) * fraction;
 
       // 약간의 변형 추가 (실제 도로처럼 보이게)
       double variance = 0.001 * math.sin(fraction * math.pi);
@@ -529,7 +562,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         markerId: const MarkerId('current_location'),
         position: currentLocationCoord!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}'),
+        infoWindow: InfoWindow(
+          title:
+              '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
+        ),
       ),
     };
     polylines = {};
@@ -545,6 +581,124 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
     // 공유 서비스를 통해 알림 취소
     _sharedService.cancelEmergencyAlert();
+  }
+
+  // 환자 상태 기반 추천 병원 로드
+  Future<void> loadRecommendedHospitals() async {
+    // 환자 위치와 상태가 모두 입력되어 있는지 확인
+    if (patientLocationCoord == null ||
+        patientCondition.isEmpty ||
+        patientSeverity.isEmpty) {
+      return;
+    }
+
+    isLoadingHospitals = true;
+    notifyListeners();
+
+    try {
+      recommendedHospitals = await _optimalRouteService.recommendHospitals(
+        patientLocationCoord!,
+        patientCondition,
+        patientSeverity,
+      );
+
+      // 추천 병원이 있으면 첫 번째 병원 선택
+      if (recommendedHospitals.isNotEmpty) {
+        selectedHospital = recommendedHospitals.first;
+        hospitalLocation = selectedHospital!.name;
+        hospitalLocationCoord = LatLng(
+          selectedHospital!.latitude,
+          selectedHospital!.longitude,
+        );
+
+        // 병원 마커 표시
+        _updateHospitalMarkers();
+      }
+    } catch (e) {
+      print('병원 추천 로드 중 오류 발생: $e');
+    } finally {
+      isLoadingHospitals = false;
+      notifyListeners();
+    }
+  }
+
+  // 추천 병원 선택
+  void selectHospital(Hospital hospital) {
+    selectedHospital = hospital;
+    hospitalLocation = hospital.name;
+    hospitalLocationCoord = LatLng(hospital.latitude, hospital.longitude);
+
+    // 병원 마커 업데이트
+    _updateHospitalMarkers();
+
+    notifyListeners();
+  }
+
+  // 병원 마커 업데이트
+  void _updateHospitalMarkers() {
+    // 현재 마커에서 병원 마커만 제거
+    final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
+    updatedMarkers.removeWhere(
+      (marker) => marker.markerId.value.startsWith('hospital_'),
+    );
+
+    // 모든 추천 병원 마커 추가
+    for (int i = 0; i < recommendedHospitals.length; i++) {
+      final hospital = recommendedHospitals[i];
+      final isSelected = selectedHospital == hospital;
+
+      updatedMarkers.add(
+        Marker(
+          markerId: MarkerId('hospital_$i'),
+          position: LatLng(hospital.latitude, hospital.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            isSelected ? BitmapDescriptor.hueRed : BitmapDescriptor.hueViolet,
+          ),
+          infoWindow: InfoWindow(
+            title: hospital.name,
+            snippet:
+                '병상: ${hospital.availableBeds}개 | 예상 시간: ${(hospital.estimatedTimeSeconds / 60).round()}분',
+          ),
+        ),
+      );
+    }
+
+    markers = updatedMarkers;
+
+    // 선택된 병원이 있으면 카메라 이동
+    if (selectedHospital != null && mapController != null) {
+      // 환자 위치와 병원 위치가 함께 보이도록 카메라 조정
+      if (patientLocationCoord != null) {
+        final LatLngBounds bounds = LatLngBounds(
+          southwest: LatLng(
+            math.min(
+                  patientLocationCoord!.latitude,
+                  selectedHospital!.latitude,
+                ) -
+                0.01,
+            math.min(
+                  patientLocationCoord!.longitude,
+                  selectedHospital!.longitude,
+                ) -
+                0.01,
+          ),
+          northeast: LatLng(
+            math.max(
+                  patientLocationCoord!.latitude,
+                  selectedHospital!.latitude,
+                ) +
+                0.01,
+            math.max(
+                  patientLocationCoord!.longitude,
+                  selectedHospital!.longitude,
+                ) +
+                0.01,
+          ),
+        );
+
+        mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100));
+      }
+    }
   }
 
   // 환자 픽업 완료 후 병원 단계로 전환
@@ -568,6 +722,9 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       ),
     };
 
+    // 환자 상태에 맞는 최적 병원 자동 검색
+    loadRecommendedHospitals();
+
     // 환자 위치에 맞게 지도 이동
     mapController?.animateCamera(
       CameraUpdate.newCameraPosition(
@@ -589,6 +746,9 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    patientLocationController.dispose();
+    hospitalLocationController.dispose();
+    currentLocationController.dispose();
     mapController?.dispose();
     super.dispose();
   }

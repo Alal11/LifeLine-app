@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../widgets/route_info_card.dart';
 import '../widgets/emergency_alert_card.dart';
+import '../widgets/hospital_list_card.dart';
 import '../viewmodels/emergency_vehicle_viewmodel.dart';
 
 class EmergencyVehicleScreen extends StatelessWidget {
@@ -88,6 +89,50 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                             "주변 차량 ${viewModel.notifiedVehicles}대에 알림이 전송되었습니다",
                         patientCondition: viewModel.patientCondition,
                         patientSeverity: viewModel.patientSeverity,
+                      ),
+                    ),
+
+                  // 병원 추천 목록 (API 호출 중일 때 로딩 표시) - 병원 이동 단계에서 추천 목록 로딩 중일 때만 표시
+                  if (viewModel.routePhase == 'hospital' &&
+                      viewModel.isLoadingHospitals)
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              CircularProgressIndicator(),
+                              SizedBox(width: 16),
+                              Text('최적 병원 검색 중...'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 병원 추천 목록 (병원 이동 단계에서 추천 병원이 있을 때만 표시, 응급 모드가 아닐 때)
+                  if (viewModel.routePhase == 'hospital' &&
+                      viewModel.recommendedHospitals.isNotEmpty &&
+                      !viewModel.emergencyMode)
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      right: 16,
+                      child: HospitalListCard(
+                        hospitals: viewModel.recommendedHospitals,
+                        selectedHospital: viewModel.selectedHospital,
+                        patientCondition: viewModel.patientCondition,
+                        patientSeverity: viewModel.patientSeverity,
+                        onHospitalSelected: (hospital) {
+                          viewModel.selectHospital(hospital);
+                        },
                       ),
                     ),
                 ],
@@ -177,13 +222,10 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                         : null,
               ),
               // 병원 이동 단계에서는 환자 위치로 고정하고 수정 불가능하도록 설정
-              controller: TextEditingController(
-                text: viewModel.currentLocation,
-              ),
-              enabled: viewModel.routePhase != 'hospital', // 병원 이동 단계에서는 비활성화
+              controller: viewModel.currentLocationController,
+              enabled: viewModel.routePhase != 'hospital',
               onChanged: (value) {
                 if (viewModel.routePhase != 'hospital') {
-                  // 병원 이동 단계가 아닐 때만 수정 가능
                   viewModel.updateCurrentLocation(value);
                 }
               },
@@ -206,13 +248,28 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
               decoration: InputDecoration(
                 hintText:
                     viewModel.routePhase == 'pickup'
-                        ? '환자 위치 입력 (예: 천안시 신부동 352-7)'
-                        : '병원 위치 입력 (예: 천안충무병원 응급실)',
+                        ? '환자 위치 입력 '
+                        : '병원 위치 입력 (또는 최적 병원 자동 추천)',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 contentPadding: const EdgeInsets.all(12),
+                suffixIcon:
+                    viewModel.routePhase == 'hospital'
+                        ? Tooltip(
+                          message: '환자 상태에 맞는 최적 병원이 자동으로 추천됩니다',
+                          child: Icon(
+                            Icons.info_outline,
+                            color: Colors.blue[300],
+                          ),
+                        )
+                        : null,
               ),
+              // 고정된 컨트롤러 사용
+              controller:
+                  viewModel.routePhase == 'pickup'
+                      ? viewModel.patientLocationController
+                      : viewModel.hospitalLocationController,
               onChanged: (value) {
                 if (viewModel.routePhase == 'pickup') {
                   viewModel.updatePatientLocation(value);
@@ -243,8 +300,8 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButtonFormField<String>(
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12),
                     border: InputBorder.none,
                   ),
                   isExpanded: true,
@@ -343,8 +400,9 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                             viewModel.currentLocation.isNotEmpty &&
                             viewModel.patientCondition.isNotEmpty) ||
                         (viewModel.routePhase == 'hospital' &&
-                            viewModel.hospitalLocation.isNotEmpty &&
-                            viewModel.currentLocation.isNotEmpty)
+                            ((viewModel.hospitalLocation.isNotEmpty) ||
+                                (viewModel.selectedHospital != null)) &&
+                            viewModel.patientLocationCoord != null)
                     ? () => viewModel.activateEmergencyMode()
                     : null,
             style: ElevatedButton.styleFrom(
@@ -362,6 +420,20 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
             ),
           ),
         ),
+
+        // 병원 이동 단계에서만 표시되는 설명
+        if (viewModel.routePhase == 'hospital') ...[
+          const SizedBox(height: 10),
+          Text(
+            '환자 상태 기반으로 최적 병원이 자동 추천됩니다.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }
@@ -525,13 +597,17 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    viewModel.routePhase == 'pickup'
-                        ? viewModel.patientLocation
-                        : viewModel.hospitalLocation,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      viewModel.routePhase == 'pickup'
+                          ? viewModel.patientLocation
+                          : viewModel.hospitalLocation,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
