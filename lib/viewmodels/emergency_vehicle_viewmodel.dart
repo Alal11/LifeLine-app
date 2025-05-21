@@ -229,25 +229,45 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
   // 환자 위치 입력 시 좌표 변환
   Future<void> updatePatientLocation(String value) async {
-    if (patientLocation != value) {
-      patientLocation = value;
-      // 컨트롤러 값도 동기화
-      if (patientLocationController.text != value) {
-        patientLocationController.text = value;
+    patientLocation = value;
+    notifyListeners();
+
+    // 공유 서비스에 위치 정보 저장
+    _sharedService.setPatientLocation(value);
+
+    // 주소를 좌표로 변환
+    final coordinates = await _geocodeAddress(value);
+    if (coordinates != null) {
+      patientLocationCoord = coordinates;
+
+      // 패턴 위치 마커 업데이트 및 지도 이동
+      if (mapController != null) {
+        // 환자 위치 마커 업데이트
+        Set<Marker> updatedMarkers = Set<Marker>.from(markers);
+        updatedMarkers.removeWhere(
+          (marker) => marker.markerId == MarkerId('patient_location'),
+        );
+        updatedMarkers.add(
+          Marker(
+            markerId: MarkerId('patient_location'),
+            position: patientLocationCoord!,
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
+            ),
+            infoWindow: InfoWindow(title: '환자 위치: $patientLocation'),
+          ),
+        );
+        markers = updatedMarkers;
+
+        // 지도를 환자 위치로 이동
+        mapController!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: patientLocationCoord!, zoom: 15.0),
+          ),
+        );
       }
+
       notifyListeners();
-
-      // 공유 서비스에 위치 정보 저장
-      _sharedService.setPatientLocation(value);
-
-      // 주소를 좌표로 변환
-      if (value.isNotEmpty) {
-        final coordinates = await _geocodeAddress(value);
-        if (coordinates != null) {
-          patientLocationCoord = coordinates;
-          notifyListeners();
-        }
-      }
     }
   }
 
@@ -318,7 +338,8 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       return;
     }
 
-    emergencyMode = true;
+    print('경로 계산 시작');
+    isCalculatingRoute = true;
     notifyListeners();
 
     try {
@@ -337,17 +358,127 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         destinationName = hospitalLocation;
       }
 
-      // 지도에 경로 표시
-      _displayRoute(origin, destination);
+      print('출발: $origin, 도착: $destination');
 
-      // 경로 계산
-      final routeData = await _routeService.calculateOptimalRoute(
-        origin,
-        destination,
-        isEmergency: true,
+      // 구글 지도 API에서 경로 가져오기
+      List<LatLng> routePoints = [];
+      final optimalRouteService = OptimalRouteService();
+
+      try {
+        print('Google Maps API로 경로 가져오기');
+        routePoints = await optimalRouteService.getGoogleMapsRoute(
+          origin,
+          destination,
+        );
+        print('Google Maps API에서 ${routePoints.length}개의 경로 포인트를 가져왔습니다.');
+
+        if (routePoints.isEmpty || routePoints.length <= 2) {
+          print('가져온 경로 포인트가 없거나 너무 적음, 더미 경로 생성 시도');
+          routePoints = _generateRoutePoints(origin, destination);
+        }
+      } catch (e) {
+        print('Google Maps API 경로 가져오기 실패, 더미 경로 사용: $e');
+        routePoints = _generateRoutePoints(origin, destination);
+      }
+
+      // 모든 마커 초기화
+      final Set<Marker> newMarkers = {};
+
+      // 출발지 마커 추가
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('origin'),
+          position: origin,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+          infoWindow: InfoWindow(
+            title: routePhase == 'pickup' ? '출발 위치: $currentLocation' : '환자 위치',
+          ),
+        ),
       );
 
-      // 주변 차량에 알림 전송 - 환자 상태 정보를 포함한 메시지
+      // 목적지 마커 추가
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: destination,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: InfoWindow(
+            title: routePhase == 'pickup' ? '환자 위치' : '병원',
+          ),
+        ),
+      );
+
+      // 경로 폴리라인 생성
+      final Set<Polyline> newPolylines = {
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: routePoints,
+          color: Colors.blue,
+          width: 5,
+        ),
+      };
+
+      // 화면 업데이트
+      markers = newMarkers;
+      polylines = newPolylines;
+
+      print('마커와 폴리라인 설정 완료');
+      notifyListeners(); // UI 업데이트
+
+      // 경로가 모두 보이도록 카메라 위치 조정
+      if (mapController != null && routePoints.isNotEmpty) {
+        // 모든 경로 포인트를 포함하는 경계 계산
+        double minLat = double.infinity;
+        double maxLat = -double.infinity;
+        double minLng = double.infinity;
+        double maxLng = -double.infinity;
+
+        // 모든 포인트 확인
+        for (var point in routePoints) {
+          minLat = math.min(minLat, point.latitude);
+          maxLat = math.max(maxLat, point.latitude);
+          minLng = math.min(minLng, point.longitude);
+          maxLng = math.max(maxLng, point.longitude);
+        }
+
+        // 여유 공간 추가
+        minLat -= 0.005;
+        maxLat += 0.005;
+        minLng -= 0.005;
+        maxLng += 0.005;
+
+        try {
+          mapController!.animateCamera(
+            CameraUpdate.newLatLngBounds(
+              LatLngBounds(
+                southwest: LatLng(minLat, minLng),
+                northeast: LatLng(maxLat, maxLng),
+              ),
+              100, // padding
+            ),
+          );
+          print('지도 카메라 경로 포함하도록 이동 완료');
+        } catch (e) {
+          print('지도 카메라 이동 오류: $e');
+
+          // 백업 방법: 단순히 두 지점 사이의 중간으로 이동
+          mapController!.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: LatLng(
+                  (origin.latitude + destination.latitude) / 2,
+                  (origin.longitude + destination.longitude) / 2,
+                ),
+                zoom: 13,
+              ),
+            ),
+          );
+        }
+      }
+
+      // 주변 차량에 알림 전송
       final notifiedCount = await _notificationService
           .sendEmergencyAlertToNearbyVehicles(
             'dummy_route_id',
@@ -355,12 +486,33 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
             1.0, // 1km 반경
           );
 
-      estimatedTime = routeData['estimated_time'] as String;
+      // 기타 정보 업데이트
+      emergencyMode = true;
+      estimatedTime = '계산 중...'; // 나중에 업데이트
       notifiedVehicles = notifiedCount;
       showAlert = true;
+
+      // 실제 경로 데이터를 기반으로 예상 시간 계산
+      if (routePoints.isNotEmpty) {
+        // 경로 거리 계산
+        double totalDistance = 0;
+        for (int i = 0; i < routePoints.length - 1; i++) {
+          totalDistance += _calculateDistance(
+            routePoints[i],
+            routePoints[i + 1],
+          );
+        }
+
+        // 거리(m)를 기반으로 예상 시간 계산 (응급 차량 속도 60km/h 가정)
+        int minutes =
+            (totalDistance / 1000 / 60 * 60)
+                .round(); // m -> km -> 시간(60km/h) -> 분
+        estimatedTime = '$minutes분';
+      }
+
       notifyListeners();
 
-      // 공유 서비스를 통해 알림 전파 - 환자 상태 정보 포함
+      // 공유 서비스를 통해 알림 전파
       _sharedService.broadcastEmergencyAlert(
         destination: destinationName,
         estimatedTime: estimatedTime,
@@ -372,108 +524,38 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       );
     } catch (e) {
       print('경로 활성화 중 오류 발생: $e');
-      emergencyMode = false;
-      showAlert = false;
-      notifyListeners();
-    }
-  }
-
-  // 도로망 고려한 경로 계산 메서드
-  Future<void> calculateOptimizedRoute() async {
-    isCalculatingRoute = true;
-    routeCalculationError = '';
-    notifyListeners();
-
-    try {
-      // 출발지와 목적지 설정
-      LatLng origin;
-      LatLng destination;
-
-      if (routePhase == 'pickup') {
-        origin = currentLocationCoord!;
-        destination = patientLocationCoord!;
-      } else {
-        origin = patientLocationCoord!;
-        destination = hospitalLocationCoord!;
-      }
-
-      // 도로망 데이터 가져오기
-      final roadNetworkData = await _roadNetworkService.getRoadNetwork(
-        dprtrLinkId: 1000001, // TODO: 출발 링크 ID
-        arriveLinkId: 1000005, // TODO: 도착 링크 ID
-      );
-
-      // 도로망 데이터 기반 경로 생성
-      List<LatLng> routePoints = _generateRouteFromNetworkData(roadNetworkData);
-
-      // 경로 표시
-      _displayRoute(origin, destination);
-
-      // 상태 업데이트
-      estimatedTime = _calculateEstimatedTime(routePoints);
-      emergencyMode = true;
-      showAlert = true;
-
-      notifyListeners();
-    } catch (e) {
-      routeCalculationError = '경로 계산 중 오류가 발생했습니다: $e';
-      print('경로 계산 오류: $e');
     } finally {
       isCalculatingRoute = false;
       notifyListeners();
     }
   }
 
-  // 도로망 데이터로부터 경로 생성
-  List<LatLng> _generateRouteFromNetworkData(Map<String, dynamic> networkData) {
-    List<LatLng> routePoints = [];
+  // 두 지점 간의 거리 계산 (미터 단위)
+  double _calculateDistance(LatLng start, LatLng end) {
+    const double earthRadius = 6371000; // 지구 반지름 (미터)
 
-    // 네트워크 데이터에서 경로 포인트 추출
-    if (networkData.containsKey('path') && networkData['path'] is List) {
-      for (var point in networkData['path']) {
-        if (point.containsKey('lat') && point.containsKey('lng')) {
-          routePoints.add(LatLng(point['lat'], point['lng']));
-        }
-      }
-    }
+    // 위도/경도를 라디안으로 변환
+    double lat1 = start.latitude * (math.pi / 180);
+    double lon1 = start.longitude * (math.pi / 180);
+    double lat2 = end.latitude * (math.pi / 180);
+    double lon2 = end.longitude * (math.pi / 180);
 
-    return routePoints;
-  }
-
-  // 예상 시간 계산
-  String _calculateEstimatedTime(List<LatLng> routePoints) {
-    // 경로 길이 계산
-    double totalDistance = 0.0;
-    for (int i = 0; i < routePoints.length - 1; i++) {
-      totalDistance += _calculateDistance(routePoints[i], routePoints[i + 1]);
-    }
-
-    // 응급 차량 평균 속도 가정 (km/h)
-    const double avgSpeed = 60.0;
-
-    // 시간 계산 (분 단위)
-    int estimatedMinutes = ((totalDistance / 1000) / avgSpeed * 60).round();
-
-    return '$estimatedMinutes분';
-  }
-
-  double _calculateDistance(LatLng a, LatLng b) {
-    const double earthRadius = 6371000;
-    double dLat = (b.latitude - a.latitude) * math.pi / 180.0;
-    double dLng = (b.longitude - a.longitude) * math.pi / 180.0;
-    double lat1 = a.latitude * math.pi / 180.0;
-    double lat2 = b.latitude * math.pi / 180.0;
-
-    double aCalc =
-        math.pow(math.sin(dLat / 2), 2) +
-        math.pow(math.sin(dLng / 2), 2) * math.cos(lat1) * math.cos(lat2);
-    double c = 2 * math.atan2(math.sqrt(aCalc), math.sqrt(1 - aCalc));
+    // Haversine 공식
+    double dLat = lat2 - lat1;
+    double dLon = lon2 - lon1;
+    double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadius * c;
   }
 
   // 지도에 경로 표시
-  void _displayRoute(LatLng origin, LatLng destination) {
+  void _displayRoute(LatLng origin, LatLng destination) async {
     // 마커 생성
     final originMarker = Marker(
       markerId: const MarkerId('origin'),
@@ -491,37 +573,107 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       infoWindow: InfoWindow(title: routePhase == 'pickup' ? '환자 위치' : '병원'),
     );
 
-    // 더미 경로 생성 (실제로는 API로 경로 얻기)
-    List<LatLng> routePoints = _generateRoutePoints(origin, destination);
-
-    // 폴리라인 생성
-    final polyline = Polyline(
-      polylineId: const PolylineId('route'),
-      points: routePoints,
-      color: Colors.blue,
-      width: 5,
-    );
-
+    // 마커만 먼저 표시 (로딩 상태 표시)
     markers = {originMarker, destinationMarker};
-    polylines = {polyline};
+    polylines = {};
     notifyListeners();
 
-    // 경로가 모두 보이도록 카메라 위치 조정
-    mapController?.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(
-            math.min(origin.latitude, destination.latitude) - 0.01,
-            math.min(origin.longitude, destination.longitude) - 0.01,
+    try {
+      // 1. OptimalRouteService를 사용하여 실제 경로 가져오기
+      List<LatLng> routePoints;
+
+      // 이미 경로 계산이 된 경우
+      if (currentRoute != null &&
+          currentRoute!.points != null &&
+          currentRoute!.points!.isNotEmpty) {
+        routePoints = currentRoute!.points!;
+      } else {
+        // 경로를 계산해야 하는 경우
+        final routeData = await _routeService.calculateOptimalRoute(
+          origin,
+          destination,
+          isEmergency: true,
+        );
+        routePoints = routeData['route_points'] as List<LatLng>;
+      }
+
+      // 폴리라인 생성
+      final polyline = Polyline(
+        polylineId: const PolylineId('route'),
+        points: routePoints,
+        color: Colors.blue,
+        width: 5,
+      );
+
+      // 마커와 폴리라인 업데이트
+      markers = {originMarker, destinationMarker};
+      polylines = {polyline};
+      notifyListeners();
+
+      // 경로가 모두 보이도록 카메라 위치 조정
+      // 경로 포인트를 모두 포함하는 경계 계산
+      double minLat = double.infinity;
+      double maxLat = -double.infinity;
+      double minLng = double.infinity;
+      double maxLng = -double.infinity;
+
+      for (var point in routePoints) {
+        minLat = math.min(minLat, point.latitude);
+        maxLat = math.max(maxLat, point.latitude);
+        minLng = math.min(minLng, point.longitude);
+        maxLng = math.max(maxLng, point.longitude);
+      }
+
+      // 경계에 패딩 추가
+      minLat -= 0.01;
+      maxLat += 0.01;
+      minLng -= 0.01;
+      maxLng += 0.01;
+
+      mapController?.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(minLat, minLng),
+            northeast: LatLng(maxLat, maxLng),
           ),
-          northeast: LatLng(
-            math.max(origin.latitude, destination.latitude) + 0.01,
-            math.max(origin.longitude, destination.longitude) + 0.01,
-          ),
+          100, // padding
         ),
-        100, // padding
-      ),
-    );
+      );
+    } catch (e) {
+      print('경로 표시 중 오류 발생: $e');
+
+      // 오류 발생 시 더미 경로라도 표시
+      List<LatLng> dummyRoute = _generateRoutePoints(origin, destination);
+
+      // 폴리라인 생성
+      final polyline = Polyline(
+        polylineId: const PolylineId('route'),
+        points: dummyRoute,
+        color: Colors.blue,
+        width: 5,
+      );
+
+      markers = {originMarker, destinationMarker};
+      polylines = {polyline};
+      notifyListeners();
+
+      // 경로가 모두 보이도록 카메라 위치 조정
+      mapController?.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(
+              math.min(origin.latitude, destination.latitude) - 0.01,
+              math.min(origin.longitude, destination.longitude) - 0.01,
+            ),
+            northeast: LatLng(
+              math.max(origin.latitude, destination.latitude) + 0.01,
+              math.max(origin.longitude, destination.longitude) + 0.01,
+            ),
+          ),
+          100, // padding
+        ),
+      );
+    }
   }
 
   // 더미 경로 포인트 생성 (실제로는 API로 대체)

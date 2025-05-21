@@ -18,6 +18,10 @@ class OptimalRouteService {
   final RoadNetworkService _roadNetworkService = RoadNetworkService();
   final EmergencyMedicalService _emergencyService = EmergencyMedicalService();
 
+  // Google Maps API 키
+  // AndroidManifest.xml 파일에서 가져온 API 키를 여기에 입력하세요
+  final String _googleMapsApiKey = 'AIzaSyAg4E_Y8py1lA_AZOipTOxOtG47fakdtKQ';
+
   // 최적 경로 및 병원 찾기
   Future<Map<String, dynamic>> findOptimalRouteAndHospital({
     required LatLng currentLocation,
@@ -47,6 +51,12 @@ class OptimalRouteService {
 
       // 2. 가장 적합한 병원 선택 (첫 번째 병원 - 이미 소요 시간으로 정렬됨)
       final optimalHospital = hospitals.first;
+      final hospitalLocation = LatLng(
+        optimalHospital.latitude,
+        optimalHospital.longitude,
+      );
+
+      List<LatLng> routePoints = [];
 
       // 3. 최적 경로 계산을 위한 링크 ID 가져오기
       final startLinkId = await LinkIdService.getNearestLinkId(
@@ -59,42 +69,43 @@ class OptimalRouteService {
         optimalHospital.longitude,
       );
 
-      // 링크 ID 가져오기 실패 시 더미 경로 반환
+      // 링크 ID 가져오기 실패 시 Google Maps API 사용
       if (startLinkId == null || endLinkId == null) {
-        return {
-          'success': true,
-          'optimalHospital': optimalHospital,
-          'routePoints': _generateDummyRoute(
-            currentLocation,
-            LatLng(optimalHospital.latitude, optimalHospital.longitude),
-          ),
-          'estimatedTimeMinutes':
-              (optimalHospital.estimatedTimeSeconds / 60).round(),
-          'distanceKm': (optimalHospital.distanceMeters / 1000).toStringAsFixed(
-            1,
-          ),
-        };
-      }
-
-      // 4. 도로망 API로 경로 계산
-      final routeData = await _roadNetworkService.getRoadNetwork(
-        dprtrLinkId: startLinkId,
-        arriveLinkId: endLinkId,
-        // 현재 시간대 기준 (0: 평일, 1: 주말)
-        weekType: _isWeekend() ? 1 : 0,
-        // 현재 시간대 기준 (00, 01, 02, .., 23 or all)
-        time: _getCurrentHour(),
-      );
-
-      // 5. 경로 포인트 변환
-      List<LatLng> routePoints = _parseRoutePoints(routeData);
-
-      // 경로 포인트가 없는 경우 더미 경로 생성
-      if (routePoints.isEmpty) {
-        routePoints = _generateDummyRoute(
+        print('링크 ID 가져오기 실패, Google Maps API 사용');
+        routePoints = await getGoogleMapsRoute(
           currentLocation,
-          LatLng(optimalHospital.latitude, optimalHospital.longitude),
+          hospitalLocation,
         );
+      } else {
+        try {
+          // 4. 도로망 API로 경로 계산
+          final routeData = await _roadNetworkService.getRoadNetwork(
+            dprtrLinkId: startLinkId,
+            arriveLinkId: endLinkId,
+            // 현재 시간대 기준 (0: 평일, 1: 주말)
+            weekType: _isWeekend() ? 1 : 0,
+            // 현재 시간대 기준 (00, 01, 02, .., 23 or all)
+            time: _getCurrentHour(),
+          );
+
+          // 5. 경로 포인트 변환
+          routePoints = _parseRoutePoints(routeData);
+
+          // 경로 포인트가 없는 경우 Google Maps API 사용
+          if (routePoints.isEmpty) {
+            print('도로망 API 경로 포인트 없음, Google Maps API 사용');
+            routePoints = await getGoogleMapsRoute(
+              currentLocation,
+              hospitalLocation,
+            );
+          }
+        } catch (e) {
+          print('도로망 API 오류, Google Maps API 사용: $e');
+          routePoints = await getGoogleMapsRoute(
+            currentLocation,
+            hospitalLocation,
+          );
+        }
       }
 
       // 6. 결과 반환
@@ -112,6 +123,89 @@ class OptimalRouteService {
       print('최적 경로 계산 중 오류 발생: $e');
       return {'success': false, 'error': '경로 계산 중 오류가 발생했습니다: $e'};
     }
+  }
+
+  // Google Maps Directions API를 사용하여 경로 가져오기
+  Future<List<LatLng>> getGoogleMapsRoute(
+    LatLng origin,
+    LatLng destination,
+  ) async {
+    try {
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/directions/json?'
+        'origin=${origin.latitude},${origin.longitude}'
+        '&destination=${destination.latitude},${destination.longitude}'
+        '&mode=driving'
+        '&alternatives=false'
+        '&key=$_googleMapsApiKey',
+      );
+
+      print('Google Maps Directions API 호출: $url');
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['status'] == 'OK') {
+          // 경로 포인트 추출
+          final List<LatLng> points = [];
+
+          // 첫 번째 경로의 개요 포인트 추출
+          final String encodedPoints =
+              data['routes'][0]['overview_polyline']['points'];
+          points.addAll(_decodePolyline(encodedPoints));
+
+          print('Google Maps API에서 ${points.length}개의 경로 포인트를 가져왔습니다.');
+          return points;
+        } else {
+          print('Google Maps API 오류: ${data['status']}');
+          // API 오류 시 더미 경로 생성
+          return _generateDummyRoute(origin, destination);
+        }
+      } else {
+        print('Google Maps API 요청 실패: ${response.statusCode}');
+        // 요청 실패 시 더미 경로 생성
+        return _generateDummyRoute(origin, destination);
+      }
+    } catch (e) {
+      print('Google Maps 경로 가져오기 실패: $e');
+      // 예외 발생 시 더미 경로 생성
+      return _generateDummyRoute(origin, destination);
+    }
+  }
+
+  // Google Maps Polyline 디코딩
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      double latValue = lat / 1e5;
+      double lngValue = lng / 1e5;
+      points.add(LatLng(latValue, lngValue));
+    }
+    return points;
   }
 
   // 도로망 데이터에서 경로 포인트 추출

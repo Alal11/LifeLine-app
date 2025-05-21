@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../models/emergency_route.dart';
 import 'location_service.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // Google Maps LatLng 사용
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'optimal_route_service.dart';
 
 class RouteService {
   // 싱글톤 패턴 구현
@@ -56,18 +57,40 @@ class RouteService {
     return route;
   }
 
-  // 최적의 경로 계산 (더미 구현)
+  // 최적의 경로 계산
   Future<Map<String, dynamic>> calculateOptimalRoute(
-    LatLng origin,
-    LatLng destination, {
-    bool isEmergency = false,
-  }) async {
-    // 경로 포인트 생성
-    final List<LatLng> routePoints = await generateRoute(origin, destination);
+      LatLng origin,
+      LatLng destination, {
+        bool isEmergency = false,
+      }) async {
+    List<LatLng> routePoints;
 
-    // 거리 계산 (단순 직선 거리에 변동 계수 적용)
-    final double directDistance = _calculateDistance(origin, destination);
-    final double distance = directDistance * 1.3; // 실제 도로는 직선보다 30% 더 길다고 가정
+    try {
+      // Google Maps Directions API 호출
+      final optimalRouteService = OptimalRouteService(); // 이미 싱글톤 패턴이므로 생성자만 호출
+      final result = await optimalRouteService.findOptimalRouteAndHospital(
+        currentLocation: origin,
+        patientCondition: 'emergency', // 기본값
+        patientSeverity: '중증',      // 기본값
+      );
+
+      if (result['success'] == true && result['routePoints'] != null) {
+        routePoints = result['routePoints'] as List<LatLng>;
+      } else {
+        // Google 경로를 직접 가져오기
+        routePoints = await optimalRouteService.getGoogleMapsRoute(origin, destination);
+      }
+    } catch (e) {
+      print('경로 계산 오류: $e');
+      // 경로 포인트 생성
+      routePoints = await generateRoute(origin, destination);
+    }
+
+    // 거리 계산 (각 포인트 간 거리 합산)
+    double distance = 0.0;
+    for (int i = 0; i < routePoints.length - 1; i++) {
+      distance += _calculateDistance(routePoints[i], routePoints[i + 1]);
+    }
 
     // 예상 시간 계산 (응급 상황이면 더 빠름)
     String estimatedTime;

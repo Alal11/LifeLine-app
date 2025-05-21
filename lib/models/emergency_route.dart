@@ -1,3 +1,5 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 enum EmergencyRouteStatus {
   ready, // 출동 준비 상태
   toPatient, // 환자 위치로 이동 중
@@ -21,6 +23,9 @@ class EmergencyRoute {
   double? distance;
   int? notifiedVehicles;
 
+  // 경로 포인트 추가
+  List<LatLng>? points;
+
   // 생성자
   EmergencyRoute({
     required this.baseLocation,
@@ -32,6 +37,7 @@ class EmergencyRoute {
     this.estimatedTime,
     this.distance,
     this.notifiedVehicles,
+    this.points,
   });
 
   // 현재 출발지와 목적지 가져오기 (기존 메서드 유지)
