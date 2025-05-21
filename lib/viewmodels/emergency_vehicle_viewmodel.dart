@@ -1,5 +1,3 @@
-// emergency_vehicle_viewmodel.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -7,7 +5,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:geocoding/geocoding.dart';
 import '../models/emergency_route.dart';
 import '../services/location_service.dart';
-import '../services/route_service.dart' hide LatLng;
+import '../services/route_service.dart';
 import '../services/notification_service.dart';
 import '../services/shared_service.dart';
 import '../services/road_network_service.dart';
@@ -113,8 +111,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       }
 
       // 위치 권한 확인
-      geo.LocationPermission permission =
-          await geo.Geolocator.checkPermission();
+      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -129,12 +126,34 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       }
 
       // 현재 위치 가져오기
-      final position = await geo.Geolocator.getCurrentPosition();
+      final position = await geo.Geolocator.getCurrentPosition(
+          desiredAccuracy: geo.LocationAccuracy.high
+      );
 
+      // 현재 위치 좌표 설정
       currentLocationCoord = LatLng(position.latitude, position.longitude);
 
-      // 현재 위치를 빈 문자열로 설정
-      currentLocation = '';
+      // 카메라 초기 위치를 현재 위치로 설정
+      initialCameraPosition = CameraPosition(
+        target: currentLocationCoord!,
+        zoom: 15.0,
+      );
+
+      // 현재 위치 주소 가져오기 (선택 사항)
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude
+        );
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          currentLocation = '${place.street}, ${place.locality}';
+          currentLocationController.text = currentLocation;
+        }
+      } catch (e) {
+        print('주소 변환 중 오류 발생: $e');
+        // 주소 변환에 실패해도 위치 좌표는 사용 가능
+      }
 
       // 초기 마커 설정
       markers = {
@@ -142,7 +161,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           markerId: const MarkerId('current_location'),
           position: currentLocationCoord!,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: '현재 위치'),
+          infoWindow: InfoWindow(title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}'),
         ),
       };
 
@@ -155,12 +174,12 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         );
       }
 
+      print('현재 위치 초기화 완료: $currentLocationCoord');
       notifyListeners();
     } catch (e) {
       print('위치 정보를 가져오는데 실패했습니다: $e');
     }
   }
-
   // 공유 상태 로드
   Future<void> _loadSharedState() async {
     // 실제 구현에서는 SharedPreferences나 다른 상태 저장소에서 데이터 로드

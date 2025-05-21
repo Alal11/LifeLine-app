@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'package:geolocator/geolocator.dart' as geo;
 
-// 더미 위치 데이터 타입
 class Position {
   final double latitude;
   final double longitude;
@@ -17,6 +17,18 @@ class Position {
     this.speed = 0.0,
     this.heading = 0.0,
   });
+
+  // Geolocator의 Position을 현재 앱의 Position으로 변환하는 팩토리 메서드
+  factory Position.fromGeolocator(geo.Position position) {
+    return Position(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracy: position.accuracy,
+      altitude: position.altitude ?? 0.0,
+      speed: position.speed,
+      heading: position.heading ?? 0.0,
+    );
+  }
 }
 
 class LocationService {
@@ -29,42 +41,49 @@ class LocationService {
 
   LocationService._internal();
 
-  // 더미 현재 위치 (서울 강남)
-  final Position _dummyPosition = Position(
-    latitude: 37.498095,
-    longitude: 127.027610,
-    accuracy: 10.0,
-    altitude: 20.0,
-    speed: 0.0,
-    heading: 90.0,
-  );
-
   // 위치 업데이트 스트림 컨트롤러
   final StreamController<Position> _positionController = StreamController<Position>.broadcast();
 
   // 위치 서비스 초기화 플래그
   bool _initialized = false;
 
+  // 위치 구독 스트림
+  StreamSubscription<geo.Position>? _geolocatorStream;
+
   // 서비스 초기화
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // 실제 구현에서는 위치 권한 요청 및 설정을 수행
+    // 위치 권한 확인 및 요청
+    bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('위치 서비스가 비활성화되어 있습니다.');
+    }
+
+    geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+      if (permission == geo.LocationPermission.denied) {
+        throw Exception('위치 권한이 거부되었습니다.');
+      }
+    }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+      throw Exception('위치 권한이 영구적으로 거부되었습니다. 설정에서 권한을 허용해주세요.');
+    }
+
     _initialized = true;
 
-    // 더미 위치 업데이트 시뮬레이션
-    Timer.periodic(const Duration(seconds: 5), (timer) {
-      // 약간의 변화를 주어 이동하는 것처럼 보이게 함
-      final updatedPosition = Position(
-        latitude: _dummyPosition.latitude + (0.001 * (DateTime.now().second % 10) / 10),
-        longitude: _dummyPosition.longitude + (0.001 * (DateTime.now().millisecond % 10) / 10),
-        accuracy: 10.0,
-        altitude: 20.0,
-        speed: 30.0 + (10 * (DateTime.now().second % 4)),
-        heading: (_dummyPosition.heading + 5) % 360,
-      );
-
-      _positionController.add(updatedPosition);
+    // 실제 위치 업데이트 구독
+    _geolocatorStream = geo.Geolocator.getPositionStream(
+      locationSettings: const geo.LocationSettings(
+        accuracy: geo.LocationAccuracy.high,
+        distanceFilter: 10, // 10미터마다 업데이트
+      ),
+    ).listen((geo.Position geoPosition) {
+      // Geolocator의 Position을 앱의 Position으로 변환
+      final position = Position.fromGeolocator(geoPosition);
+      _positionController.add(position);
     });
   }
 
@@ -72,15 +91,12 @@ class LocationService {
   Future<Position> getCurrentLocation() async {
     await initialize();
 
-    // 더미 위치 반환 (약간의 변형 추가)
-    return Position(
-      latitude: _dummyPosition.latitude + (0.0005 * (DateTime.now().second % 10) / 10),
-      longitude: _dummyPosition.longitude + (0.0005 * (DateTime.now().millisecond % 10) / 10),
-      accuracy: 10.0,
-      altitude: 20.0,
-      speed: 30.0 + (10 * (DateTime.now().second % 4)),
-      heading: (_dummyPosition.heading + 10) % 360,
+    // 실제 위치 가져오기
+    final geoPosition = await geo.Geolocator.getCurrentPosition(
+      desiredAccuracy: geo.LocationAccuracy.high,
     );
+
+    return Position.fromGeolocator(geoPosition);
   }
 
   // 위치 스트림 가져오기
@@ -91,35 +107,17 @@ class LocationService {
 
   // 두 위치 사이의 거리 계산 (Haversine 공식 사용)
   double calculateDistance(Position start, Position end) {
-    const double earthRadius = 6371000; // 지구 반지름 (미터)
-
-    final double startLatRad = _degreesToRadians(start.latitude);
-    final double endLatRad = _degreesToRadians(end.latitude);
-    final double latDiffRad = _degreesToRadians(end.latitude - start.latitude);
-    final double lngDiffRad = _degreesToRadians(end.longitude - start.longitude);
-
-    final double a = sin(latDiffRad / 2) * sin(latDiffRad / 2) +
-        cos(startLatRad) * cos(endLatRad) *
-            sin(lngDiffRad / 2) * sin(lngDiffRad / 2);
-    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-
-    return earthRadius * c;
+    return geo.Geolocator.distanceBetween(
+        start.latitude,
+        start.longitude,
+        end.latitude,
+        end.longitude
+    );
   }
-
-  // 도 -> 라디안 변환
-  double _degreesToRadians(double degrees) {
-    return degrees * (pi / 180);
-  }
-
-  // 수학 함수 (dart:math 패키지 사용할 수 없는 경우를 위한 간단 구현)
-  double sin(double x) => x - (x * x * x) / 6;
-  double cos(double x) => 1 - (x * x) / 2;
-  double sqrt(double x) => x * x;
-  double atan2(double y, double x) => y / x;
-  double pi = 3.14159265359;
 
   // 서비스 정리
   void dispose() {
+    _geolocatorStream?.cancel();
     _positionController.close();
   }
 }

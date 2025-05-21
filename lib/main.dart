@@ -32,6 +32,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({Key? key}) : super(key: key);
 
@@ -44,7 +45,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   static final List<Widget> _widgetOptions = <Widget>[
     const EmergencyVehicleScreen(),
-    const RegularVehicleScreen(),
+    RegularVehicleScreen(),
   ];
 
   void _onItemTapped(int index) {

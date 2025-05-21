@@ -1,9 +1,9 @@
-// views/regular_vehicle_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../widgets/emergency_vehicle_alert.dart';
 import '../viewmodels/regular_vehicle_viewmodel.dart';
+import '../views/location_selection_screen.dart'; // 올바른 경로로 수정
 
 class RegularVehicleScreen extends StatelessWidget {
   const RegularVehicleScreen({Key? key}) : super(key: key);
@@ -57,6 +57,39 @@ class _RegularVehicleScreenContent extends StatelessWidget {
                       mapToolbarEnabled: true,
                     ),
                   ),
+
+                  // 위치 변경 버튼 추가 (우측 상단)
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: FloatingActionButton(
+                      mini: true,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue,
+                      child: const Icon(Icons.edit_location),
+                      onPressed: () async {
+                        // LocationSelectionScreen으로 이동
+                        print('위치 변경 버튼 클릭됨'); // 디버깅용 로그 추가
+                        final result = await Navigator.push<LatLng>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LocationSelectionScreen(
+                              initialLocation: viewModel.currentLocationCoord,
+                            ),
+                          ),
+                        );
+
+                        // 위치가 선택되었다면 ViewModel 업데이트
+                        if (result != null) {
+                          print('선택된 위치: $result'); // 디버깅용 로그 추가
+                          await viewModel.updateLocation(result);
+                          print('위치 업데이트 완료'); // 디버깅용 로그 추가
+                        } else {
+                          print('위치가 선택되지 않음'); // 디버깅용 로그 추가
+                        }
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -70,8 +103,8 @@ class _RegularVehicleScreenContent extends StatelessWidget {
               estimatedArrival: viewModel.estimatedArrival,
               approachDirection: viewModel.approachDirection,
               destination: viewModel.emergencyDestination,
-              patientCondition: viewModel.patientCondition, // 추가
-              patientSeverity: viewModel.patientSeverity, // 추가
+              patientCondition: viewModel.patientCondition,
+              patientSeverity: viewModel.patientSeverity,
               onDismiss: () => viewModel.dismissAlert(),
             ),
 
@@ -95,9 +128,49 @@ class _RegularVehicleScreenContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '현재 상태',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '현재 상태',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+
+                    // 위치 변경 버튼 추가
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit_location_alt, size: 16),
+                      label: const Text('위치 변경', style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        foregroundColor: Colors.blue,
+                        backgroundColor: Colors.blue.withOpacity(0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () async {
+                        // LocationSelectionScreen으로 이동
+                        print('하단 위치 변경 버튼 클릭됨'); // 디버깅용 로그 추가
+                        final result = await Navigator.push<LatLng>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LocationSelectionScreen(
+                              initialLocation: viewModel.currentLocationCoord,
+                            ),
+                          ),
+                        );
+
+                        // 위치가 선택되었다면 ViewModel 업데이트
+                        if (result != null) {
+                          print('선택된 위치: $result'); // 디버깅용 로그 추가
+                          await viewModel.updateLocation(result);
+                          print('위치 업데이트 완료'); // 디버깅용 로그 추가
+                        } else {
+                          print('위치가 선택되지 않음'); // 디버깅용 로그 추가
+                        }
+                      },
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 12),
@@ -130,6 +203,8 @@ class _RegularVehicleScreenContent extends StatelessWidget {
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
+                              maxLines: 2, // 주소가 길 경우 2줄까지 표시
+                              overflow: TextOverflow.ellipsis, // 넘칠 경우 ... 표시
                             ),
                           ],
                         ),

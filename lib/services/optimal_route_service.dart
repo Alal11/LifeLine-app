@@ -224,25 +224,110 @@ class OptimalRouteService {
     return routePoints;
   }
 
+  // OpenStreetMap API를 사용하여 경로 가져오기
+  Future<List<LatLng>> getOpenStreetMapRoute(
+    LatLng origin,
+    LatLng destination,
+  ) async {
+    try {
+      final url = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      print('OpenStreetMap API 호출: $url');
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['code'] == 'Ok' &&
+            data['routes'] != null &&
+            data['routes'].isNotEmpty) {
+          final List<LatLng> points = [];
+
+          // 경로 좌표 추출 (GeoJSON 형식)
+          final coordinates =
+              data['routes'][0]['geometry']['coordinates'] as List;
+
+          for (var coord in coordinates) {
+            // OpenStreetMap API는 [경도, 위도] 순서로 반환
+            points.add(LatLng(coord[1], coord[0]));
+          }
+
+          print('OpenStreetMap API에서 ${points.length}개의 경로 포인트를 가져왔습니다.');
+          return points;
+        } else {
+          print('OpenStreetMap API 오류: ${data['code']}');
+          return _generateDummyRoute(origin, destination);
+        }
+      } else {
+        print('OpenStreetMap API 요청 실패: ${response.statusCode}');
+        return _generateDummyRoute(origin, destination);
+      }
+    } catch (e) {
+      print('OpenStreetMap 경로 가져오기 실패: $e');
+      return _generateDummyRoute(origin, destination);
+    }
+  }
+
   // 더미 경로 생성 (API 실패 시)
   List<LatLng> _generateDummyRoute(LatLng origin, LatLng destination) {
     List<LatLng> points = [];
     points.add(origin);
 
+    // 두 지점 사이의 거리 계산
+    const double earthRadius = 6371000; // 지구 반지름 (미터)
+    double lat1 = origin.latitude * (math.pi / 180);
+    double lon1 = origin.longitude * (math.pi / 180);
+    double lat2 = destination.latitude * (math.pi / 180);
+    double lon2 = destination.longitude * (math.pi / 180);
+
+    double dLat = lat2 - lat1;
+    double dLon = lon2 - lon1;
+    double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    double distance = earthRadius * c;
+
+    // 거리에 따라 중간 포인트 수 조정
+    int steps = math.max(10, (distance / 200).round()); // 200m마다 포인트 생성
+
+    // 방향 벡터 계산
+    double dx = destination.longitude - origin.longitude;
+    double dy = destination.latitude - origin.latitude;
+
     // 중간 포인트 추가
-    const int steps = 5;
     for (int i = 1; i < steps; i++) {
       double fraction = i / steps;
-      double lat =
-          origin.latitude + (destination.latitude - origin.latitude) * fraction;
-      double lng =
-          origin.longitude +
-          (destination.longitude - origin.longitude) * fraction;
 
-      // 약간의 변형 추가 (실제 도로처럼 보이게)
-      double variance = 0.001 * math.sin(fraction * math.pi);
-      double adjustedLat = lat + variance * math.cos(fraction * 5 * math.pi);
-      double adjustedLng = lng + variance * math.sin(fraction * 5 * math.pi);
+      // 기본 위치 계산
+      double lat = origin.latitude + dy * fraction;
+      double lng = origin.longitude + dx * fraction;
+
+      // 더 복잡한 패턴 생성 (실제 도로처럼 보이게)
+      double maxVariance =
+          0.0005 * (1 - math.pow(2 * fraction - 1, 2)); // 중간에 가장 크게 변형
+      double variance1 = maxVariance * math.sin(fraction * math.pi * 5);
+      double variance2 = maxVariance * math.cos(fraction * math.pi * 7);
+
+      // 원래 방향에 수직인 방향으로 변형 추가
+      double perpX = -dy;
+      double perpY = dx;
+      double norm = math.sqrt(perpX * perpX + perpY * perpY);
+      if (norm > 0) {
+        perpX /= norm;
+        perpY /= norm;
+      }
+
+      double adjustedLat = lat + perpY * variance1 + perpX * variance2 * 0.5;
+      double adjustedLng = lng + perpX * variance1 - perpY * variance2 * 0.5;
 
       points.add(LatLng(adjustedLat, adjustedLng));
     }
