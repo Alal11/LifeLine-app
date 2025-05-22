@@ -1,6 +1,7 @@
 // shared_service.dart
 
 import 'dart:async';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class SharedService {
   // 싱글톤 패턴 구현
@@ -24,6 +25,14 @@ class SharedService {
   // 환자 상태 관련 변수 추가
   String _patientCondition = '';
   String _patientSeverity = '';
+
+  // 🔥 위치 동기화를 위한 스트림 컨트롤러 추가
+  final _locationUpdateController = StreamController<LatLng>.broadcast();
+  Stream<LatLng> get locationUpdateStream => _locationUpdateController.stream;
+
+  // 🔥 환자 정보 업데이트를 위한 스트림 컨트롤러 추가
+  final _patientInfoController = StreamController<Map<String, String>>.broadcast();
+  Stream<Map<String, String>> get patientInfoStream => _patientInfoController.stream;
 
   // 알림 상태 getter
   bool get isEmergencyActive => _emergencyModeActive;
@@ -55,6 +64,34 @@ class SharedService {
     _routePhase = phase;
   }
 
+  // 🔥 환자 위치가 설정될 때 일반차량 위치도 업데이트
+  void updatePatientLocationAndSyncVehicles(String location, LatLng coordinates) {
+    _patientLocation = location;
+    // 일반차량들의 위치를 환자 근처로 이동
+    _locationUpdateController.add(coordinates);
+    print('환자 위치 설정 및 일반차량 동기화: $location -> $coordinates');
+  }
+
+  // 🔥 응급차량 현재 위치 업데이트시에도 일반차량 동기화
+  void syncVehicleLocation(LatLng newLocation) {
+    _locationUpdateController.add(newLocation);
+    print('일반차량 위치 동기화: $newLocation');
+  }
+
+  // 🔥 환자 정보 업데이트
+  void updatePatientInfo(String condition, String severity) {
+    _patientCondition = condition;
+    _patientSeverity = severity;
+
+    // 환자 정보 스트림으로 전송
+    _patientInfoController.add({
+      'condition': condition,
+      'severity': severity,
+    });
+
+    print('환자 정보 업데이트: $condition ($severity)');
+  }
+
   // 응급차량에서 알림 전송
   void broadcastEmergencyAlert({
     required String destination,
@@ -78,6 +115,8 @@ class SharedService {
       _hospitalLocation = destination;
     }
 
+    print('🚨 응급 알림 전송: $patientCondition ($patientSeverity) -> $destination');
+
     // 알림 전송
     _emergencyAlertController.add({
       'active': true,
@@ -94,6 +133,8 @@ class SharedService {
   void cancelEmergencyAlert() {
     _emergencyModeActive = false;
 
+    print('응급 알림 종료');
+
     _emergencyAlertController.add({
       'active': false,
     });
@@ -102,5 +143,7 @@ class SharedService {
   // 서비스 정리
   void dispose() {
     _emergencyAlertController.close();
+    _locationUpdateController.close(); // 🔥 추가
+    _patientInfoController.close(); // 🔥 추가
   }
 }

@@ -3,16 +3,18 @@ import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../widgets/emergency_vehicle_alert.dart';
 import '../viewmodels/regular_vehicle_viewmodel.dart';
-import '../views/location_selection_screen.dart'; // 올바른 경로로 수정
+import '../views/location_selection_screen.dart';
 
 class RegularVehicleScreen extends StatelessWidget {
   const RegularVehicleScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => RegularVehicleViewModel()..initialize(),
-      child: const _RegularVehicleScreenContent(),
+    // 🔥 이미 생성된 ViewModel 사용 (새로 생성하지 않음)
+    return Consumer<RegularVehicleViewModel>(
+      builder: (context, viewModel, child) {
+        return const _RegularVehicleScreenContent();
+      },
     );
   }
 }
@@ -174,6 +176,35 @@ class _RegularVehicleScreenContent extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 12),
+
+                // 🔥 응급차량 정보가 있으면 추가로 표시
+                if (viewModel.showEmergencyAlert) ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🚨 응급상황 정보',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('환자: ${viewModel.patientCondition} (${viewModel.patientSeverity})'),
+                        Text('목적지: ${viewModel.emergencyDestination}'),
+                        Text('예상 도착: ${viewModel.estimatedArrival}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // 상태 정보 표시
                 Row(

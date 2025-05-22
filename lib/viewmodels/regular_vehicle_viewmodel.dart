@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
@@ -6,349 +7,396 @@ import 'package:geolocator/geolocator.dart' as geo;
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../services/shared_service.dart';
+import '../services/shared_location_service.dart';
 
 class RegularVehicleViewModel extends ChangeNotifier {
   // 서비스 인스턴스
   final LocationService _locationService = LocationService();
   final NotificationService _notificationService = NotificationService();
   final SharedService _sharedService = SharedService();
-  Set<Polyline> polylines = {};
+  final SharedLocationService sharedLocationService;
 
-  // 상태 변수들
-  bool showEmergencyAlert = false;
-  String currentLocation = '';
-  String currentSpeed = '0 km/h';
-
-  // 환자 상태 변수 추가
-  String patientCondition = '';
-  String patientSeverity = '';
-
-  // 알림 정보
-  String estimatedArrival = '';
-  String approachDirection = '';
-  String emergencyDestination = '';
+  // 생성자에서 SharedLocationService 주입
+  RegularVehicleViewModel({required this.sharedLocationService});
 
   // 지도 관련 변수
-  GoogleMapController? mapController;
-  Set<Marker> markers = {};
-  LatLng? currentLocationCoord;
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
+  LatLng? _currentLocationCoord;
+
+  // 상태 변수들
+  bool _showEmergencyAlert = false;
+  String _currentLocation = '';
+  String _currentSpeed = '0 km/h';
+  String _patientCondition = '';
+  String _patientSeverity = '';
+  String _estimatedArrival = '';
+  String _approachDirection = '';
+  String _emergencyDestination = '';
 
   // 카메라 초기 위치 (서울 강남)
-  CameraPosition initialCameraPosition = const CameraPosition(
+  CameraPosition _initialCameraPosition = const CameraPosition(
     target: LatLng(37.498095, 127.027610),
     zoom: 14.0,
   );
 
-  // 위치 구독
+  // 위치 구독 관리
   StreamSubscription? _locationSubscription;
   StreamSubscription? _alertSubscription;
+  StreamSubscription? _locationSyncSubscription;
+  StreamSubscription? _patientInfoSubscription;
+
+  // 디바운싱을 위한 타이머
+  Timer? _addressUpdateTimer;
+  Timer? _cameraUpdateTimer;
+
+  // 최적화를 위한 플래그들
+  bool _isInitialized = false;
+  bool _isDisposed = false;
+  bool _isUpdatingLocation = false;
+
+  // Public getters
+  GoogleMapController? get mapController => _mapController;
+  Set<Marker> get markers => _markers;
+  Set<Polyline> get polylines => _polylines;
+  LatLng? get currentLocationCoord => _currentLocationCoord;
+  bool get showEmergencyAlert => _showEmergencyAlert;
+  String get currentLocation => _currentLocation;
+  String get currentSpeed => _currentSpeed;
+  String get patientCondition => _patientCondition;
+  String get patientSeverity => _patientSeverity;
+  String get estimatedArrival => _estimatedArrival;
+  String get approachDirection => _approachDirection;
+  String get emergencyDestination => _emergencyDestination;
+  CameraPosition get initialCameraPosition => _initialCameraPosition;
 
   // 초기화
   Future<void> initialize() async {
-    await _initializeLocation();
-    _subscribeToEmergencyAlerts();
+    if (_isInitialized || _isDisposed) return;
+
+    try {
+      await _initializeLocation();
+      _subscribeToStreams();
+      _isInitialized = true;
+      print('RegularVehicleViewModel 초기화 완료');
+    } catch (e) {
+      print('RegularVehicleViewModel 초기화 실패: $e');
+    }
   }
 
-  // 위치 초기화 및 구독
+  // 모든 스트림 구독을 하나의 메서드로 통합
+  void _subscribeToStreams() {
+    _subscribeToEmergencyAlerts();
+    _subscribeToLocationSync();
+    _subscribeToPatientInfo();
+  }
+
+  // 위치 초기화 (최적화된 버전)
   Future<void> _initializeLocation() async {
     try {
-      // 위치 권한 확인 및 요청
-      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        permission = await geo.Geolocator.requestPermission();
-        if (permission == geo.LocationPermission.denied) {
-          print('위치 권한이 거부되었습니다.');
-          return;
-        }
-      }
-
-      if (permission == geo.LocationPermission.deniedForever) {
-        print('위치 권한이 영구적으로 거부되었습니다. 설정에서 권한을 허용해주세요.');
-        return;
-      }
+      // 위치 권한 확인
+      if (!await _checkLocationPermission()) return;
 
       // 현재 위치 가져오기
       final position = await geo.Geolocator.getCurrentPosition(
-          desiredAccuracy: geo.LocationAccuracy.high
+        desiredAccuracy: geo.LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10), // 타임아웃 설정
       );
 
-      currentLocationCoord = LatLng(position.latitude, position.longitude);
-      print('초기 위치 좌표: ${position.latitude}, ${position.longitude}');
+      await _updateLocationData(LatLng(position.latitude, position.longitude));
 
-      // 현재 위치의 주소 가져오기
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-          localeIdentifier: 'ko_KR', // 한국어 로케일 추가
-        );
-
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks.first;
-
-          // 모든 주소 구성요소 로깅하여 확인
-          print('주소 구성요소:');
-          print('name: ${place.name}');
-          print('street: ${place.street}');
-          print('thoroughfare: ${place.thoroughfare}');
-          print('subThoroughfare: ${place.subThoroughfare}');
-          print('locality: ${place.locality}');
-          print('subLocality: ${place.subLocality}');
-          print('administrativeArea: ${place.administrativeArea}');
-          print('subAdministrativeArea: ${place.subAdministrativeArea}');
-          print('postalCode: ${place.postalCode}');
-          print('country: ${place.country}');
-
-          // 주소 정보 구성 - 한국식 주소 형태로 상세하게 구성
-          List<String> addressParts = [];
-
-          // 시/도 (행정구역)
-          if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
-            addressParts.add(place.administrativeArea!);
-          }
-
-          // 구/군 (하위 행정구역)
-          if (place.subAdministrativeArea != null && place.subAdministrativeArea!.isNotEmpty) {
-            addressParts.add(place.subAdministrativeArea!);
-          } else if (place.locality != null && place.locality!.isNotEmpty) {
-            addressParts.add(place.locality!);
-          }
-
-          // 동/읍/면 (하위 지역)
-          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-            addressParts.add(place.subLocality!);
-          }
-
-          // 도로명 또는 지번 주소
-          if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
-            if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
-              addressParts.add('${place.thoroughfare!} ${place.subThoroughfare!}');
-            } else {
-              addressParts.add(place.thoroughfare!);
-            }
-          } else if (place.name != null && place.name!.isNotEmpty && place.name != 'Unnamed Road') {
-            addressParts.add(place.name!);
-          }
-
-          // 주소 조합
-          currentLocation = addressParts.join(', ');
-
-          // 주소가 비어있으면 좌표 표시
-          if (currentLocation.trim().isEmpty || currentLocation == ',') {
-            currentLocation = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-          }
-
-          print('초기 변환된 주소: $currentLocation');
-        } else {
-          print('주소 변환 결과 없음. 좌표 사용.');
-          currentLocation = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-        }
-      } catch (e) {
-        print('주소 변환 오류: $e');
-        // 주소 변환 실패 시 좌표 사용
-        currentLocation = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-      }
-
-      // 초기 마커 설정
-      markers = {
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: currentLocationCoord!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: InfoWindow(title: '현재 위치: $currentLocation'),
-        ),
-      };
-
-      // 초기 카메라 위치 설정
-      initialCameraPosition = CameraPosition(
-        target: currentLocationCoord!,
-        zoom: 15.0,
-      );
-
-      // 카메라 위치 업데이트
-      if (mapController != null) {
-        mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: currentLocationCoord!, zoom: 15.0),
-          ),
-        );
-      }
-
-      notifyListeners();
     } catch (e) {
       print('위치 정보를 가져오는데 실패했습니다: $e');
+      // 기본 위치로 설정
+      await _updateLocationData(const LatLng(37.498095, 127.027610));
     }
   }
 
-  // 위치 업데이트 메서드
-  Future<void> updateLocation(LatLng newLocation) async {
-    try {
-      print('updateLocation 호출됨: $newLocation'); // 디버깅용 로그 추가
+  // 위치 권한 확인 (분리된 메서드)
+  Future<bool> _checkLocationPermission() async {
+    geo.LocationPermission permission = await geo.Geolocator.checkPermission();
 
-      currentLocationCoord = newLocation;
-
-      // 주소 변환 - 더 상세한 주소 정보 가져오기
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          newLocation.latitude,
-          newLocation.longitude,
-          localeIdentifier: 'ko_KR', // 한국어 로케일 추가
-        );
-
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks.first;
-
-          // 모든 주소 구성요소 로깅하여 확인
-          print('주소 구성요소:');
-          print('name: ${place.name}');
-          print('street: ${place.street}');
-          print('thoroughfare: ${place.thoroughfare}');
-          print('subThoroughfare: ${place.subThoroughfare}');
-          print('locality: ${place.locality}');
-          print('subLocality: ${place.subLocality}');
-          print('administrativeArea: ${place.administrativeArea}');
-          print('subAdministrativeArea: ${place.subAdministrativeArea}');
-          print('postalCode: ${place.postalCode}');
-          print('country: ${place.country}');
-
-          // 주소 정보 구성 - 한국식 주소 형태로 상세하게 구성
-          List<String> addressParts = [];
-
-          // 시/도 (행정구역)
-          if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) {
-            addressParts.add(place.administrativeArea!);
-          }
-
-          // 구/군 (하위 행정구역)
-          if (place.subAdministrativeArea != null && place.subAdministrativeArea!.isNotEmpty) {
-            addressParts.add(place.subAdministrativeArea!);
-          } else if (place.locality != null && place.locality!.isNotEmpty) {
-            addressParts.add(place.locality!);
-          }
-
-          // 동/읍/면 (하위 지역)
-          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-            addressParts.add(place.subLocality!);
-          }
-
-          // 도로명 또는 지번 주소
-          if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
-            if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) {
-              addressParts.add('${place.thoroughfare!} ${place.subThoroughfare!}');
-            } else {
-              addressParts.add(place.thoroughfare!);
-            }
-          } else if (place.name != null && place.name!.isNotEmpty && place.name != 'Unnamed Road') {
-            addressParts.add(place.name!);
-          }
-
-          // 주소 조합
-          currentLocation = addressParts.join(', ');
-
-          // 주소가 비어있으면 좌표 표시
-          if (currentLocation.trim().isEmpty || currentLocation == ',') {
-            currentLocation = '${newLocation.latitude.toStringAsFixed(4)}, ${newLocation.longitude.toStringAsFixed(4)}';
-          }
-
-          print('변환된 주소: $currentLocation'); // 디버깅용 로그 추가
-        } else {
-          currentLocation = '${newLocation.latitude.toStringAsFixed(4)}, ${newLocation.longitude.toStringAsFixed(4)}';
-          print('주소 변환 결과 없음. 좌표 사용.');
-        }
-      } catch (e) {
-        print('주소 변환 오류: $e');
-        currentLocation = '${newLocation.latitude.toStringAsFixed(4)}, ${newLocation.longitude.toStringAsFixed(4)}';
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+      if (permission == geo.LocationPermission.denied) {
+        print('위치 권한이 거부되었습니다.');
+        return false;
       }
-
-      // 마커 업데이트
-      markers = {
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: currentLocationCoord!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: InfoWindow(title: '현재 위치: $currentLocation'),
-        ),
-      };
-
-      // 카메라 이동
-      if (mapController != null) {
-        await mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: currentLocationCoord!, zoom: 15.0),
-          ),
-        );
-        print('카메라 이동 완료'); // 디버깅용 로그 추가
-      } else {
-        print('mapController가 null임'); // 디버깅용 로그 추가
-      }
-
-      notifyListeners();
-      print('notifyListeners 호출됨'); // 디버깅용 로그 추가
-    } catch (e) {
-      print('updateLocation 메서드 오류: $e'); // 오류 로깅
     }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+      print('위치 권한이 영구적으로 거부되었습니다.');
+      return false;
+    }
+
+    return true;
   }
 
-  // 응급차량 알림 구독
-  void _subscribeToEmergencyAlerts() {
-    // 공유 서비스로부터 응급 알림 구독
-    _alertSubscription = _sharedService.emergencyAlertStream.listen((data) {
-      if (data['active'] == true) {
-        showEmergencyAlert = true;
-        estimatedArrival = data['estimatedTime'];
-        approachDirection = data['approachDirection'];
-        emergencyDestination = data['destination'];
-        patientCondition = data['patientCondition'];
-        patientSeverity = data['patientSeverity'];
+  // 위치 데이터 업데이트 (최적화된 버전)
+  Future<void> _updateLocationData(LatLng newLocation) async {
+    if (_isDisposed) return;
 
-        // 알림 표시 시 효과음 재생
-        _notificationService.playAlertSound();
-      } else {
-        showEmergencyAlert = false;
+    _currentLocationCoord = newLocation;
+
+    // 초기 카메라 위치 설정
+    _initialCameraPosition = CameraPosition(
+      target: newLocation,
+      zoom: 15.0,
+    );
+
+    // 마커 업데이트
+    _updateMarkers();
+
+    // 주소 변환은 디바운싱 적용
+    _scheduleAddressUpdate(newLocation);
+
+    // 카메라 업데이트
+    _scheduleCameraUpdate(newLocation);
+
+    if (_isInitialized) notifyListeners();
+  }
+
+  // 주소 업데이트 디바운싱
+  void _scheduleAddressUpdate(LatLng location) {
+    _addressUpdateTimer?.cancel();
+    _addressUpdateTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!_isDisposed) {
+        _updateAddressFromLocation(location);
       }
-      notifyListeners();
     });
+  }
 
-    // 기존 알림 서비스 구독 (백그라운드 알림용)
-    _notificationService.getEmergencyAlerts().listen((alertData) {
-      if (!showEmergencyAlert) {
-        showEmergencyAlert = true;
-        estimatedArrival = alertData['message'].split('분').first + '분 이내';
-        approachDirection = alertData['approach_direction'];
-        emergencyDestination = alertData['destination'];
+  // 카메라 업데이트 디바운싱
+  void _scheduleCameraUpdate(LatLng location) {
+    _cameraUpdateTimer?.cancel();
+    _cameraUpdateTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!_isDisposed && _mapController != null) {
+        _updateCameraPosition(location);
+      }
+    });
+  }
 
-        // 알림 효과음 재생
-        _notificationService.playAlertSound();
+  // 주소 변환 (최적화된 버전)
+  Future<void> _updateAddressFromLocation(LatLng location) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+        localeIdentifier: 'ko_KR',
+      ).timeout(const Duration(seconds: 5)); // 타임아웃 설정
+
+      if (placemarks.isNotEmpty && !_isDisposed) {
+        _currentLocation = _buildAddressString(placemarks.first, location);
         notifyListeners();
       }
-    });
+    } catch (e) {
+      print('주소 변환 오류: $e');
+      if (!_isDisposed) {
+        _currentLocation = '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
+        notifyListeners();
+      }
+    }
+  }
+
+  // 주소 문자열 생성 (최적화된 버전)
+  String _buildAddressString(Placemark place, LatLng location) {
+    final addressParts = <String>[];
+
+    // 주요 주소 구성요소만 사용
+    if (place.administrativeArea?.isNotEmpty == true) {
+      addressParts.add(place.administrativeArea!);
+    }
+
+    if (place.subAdministrativeArea?.isNotEmpty == true) {
+      addressParts.add(place.subAdministrativeArea!);
+    } else if (place.locality?.isNotEmpty == true) {
+      addressParts.add(place.locality!);
+    }
+
+    if (place.subLocality?.isNotEmpty == true) {
+      addressParts.add(place.subLocality!);
+    }
+
+    // 도로명 주소 처리
+    if (place.thoroughfare?.isNotEmpty == true) {
+      if (place.subThoroughfare?.isNotEmpty == true) {
+        addressParts.add('${place.thoroughfare!} ${place.subThoroughfare!}');
+      } else {
+        addressParts.add(place.thoroughfare!);
+      }
+    }
+
+    final address = addressParts.join(', ');
+    return address.isNotEmpty ? address :
+    '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}';
+  }
+
+  // 마커 업데이트 (최적화된 버전)
+  void _updateMarkers() {
+    if (_currentLocationCoord == null) return;
+
+    _markers = {
+      Marker(
+        markerId: const MarkerId('current_location'),
+        position: _currentLocationCoord!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(title: '현재 위치: $_currentLocation'),
+      ),
+    };
+  }
+
+  // 카메라 위치 업데이트
+  void _updateCameraPosition(LatLng location) {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: location, zoom: 15.0),
+      ),
+    );
+  }
+
+  // 위치 업데이트 메서드 (최적화된 버전)
+  Future<void> updateLocation(LatLng newLocation) async {
+    if (_isDisposed || _isUpdatingLocation) return;
+
+    _isUpdatingLocation = true;
+    try {
+      await _updateLocationData(newLocation);
+      print('위치 업데이트 완료: $newLocation');
+    } finally {
+      _isUpdatingLocation = false;
+    }
+  }
+
+  // 위치 동기화 구독 (최적화된 버전)
+  void _subscribeToLocationSync() {
+    _locationSyncSubscription = _sharedService.locationUpdateStream.listen(
+          (newLocation) {
+        if (!_isDisposed) {
+          _moveToNearbyLocation(newLocation);
+        }
+      },
+      onError: (error) => print('위치 동기화 오류: $error'),
+    );
+  }
+
+  // 근처 위치로 이동 (최적화된 버전)
+  void _moveToNearbyLocation(LatLng targetLocation) {
+    if (_isDisposed) return;
+
+    final random = Random();
+    final offsetLat = (random.nextDouble() - 0.5) * 0.03;
+    final offsetLng = (random.nextDouble() - 0.5) * 0.03;
+
+    final nearbyLocation = LatLng(
+      targetLocation.latitude + offsetLat,
+      targetLocation.longitude + offsetLng,
+    );
+
+    print('일반차량 위치를 응급차량 근처로 이동: $nearbyLocation');
+    updateLocation(nearbyLocation);
+  }
+
+  // 응급차량 알림 구독 (최적화된 버전)
+  void _subscribeToEmergencyAlerts() {
+    _alertSubscription = _sharedService.emergencyAlertStream.listen(
+          (data) {
+        if (_isDisposed) return;
+
+        if (data['active'] == true) {
+          _showEmergencyAlert = true;
+          _estimatedArrival = data['estimatedTime'] ?? '';
+          _approachDirection = data['approachDirection'] ?? '';
+          _emergencyDestination = data['destination'] ?? '';
+          _patientCondition = data['patientCondition'] ?? '';
+          _patientSeverity = data['patientSeverity'] ?? '';
+
+          print('🚨 응급 알림 수신: $_patientCondition ($_patientSeverity) - $_emergencyDestination');
+          _notificationService.playAlertSound();
+        } else {
+          _showEmergencyAlert = false;
+          print('응급 알림 종료');
+        }
+        notifyListeners();
+      },
+      onError: (error) => print('응급 알림 구독 오류: $error'),
+    );
+
+    // 기존 알림 서비스 구독 (백그라운드 알림용)
+    _notificationService.getEmergencyAlerts().listen(
+          (alertData) {
+        if (!_showEmergencyAlert && !_isDisposed) {
+          _showEmergencyAlert = true;
+          _estimatedArrival = alertData['message'].split('분').first + '분 이내';
+          _approachDirection = alertData['approach_direction'] ?? '';
+          _emergencyDestination = alertData['destination'] ?? '';
+
+          _notificationService.playAlertSound();
+          notifyListeners();
+        }
+      },
+      onError: (error) => print('백그라운드 알림 오류: $error'),
+    );
+  }
+
+  // 환자 정보 구독 (새로 추가)
+  void _subscribeToPatientInfo() {
+    _patientInfoSubscription = _sharedService.patientInfoStream.listen(
+          (patientInfo) {
+        if (_isDisposed) return;
+
+        if (patientInfo['condition'] != null) {
+          _patientCondition = patientInfo['condition']!;
+          _patientSeverity = patientInfo['severity'] ?? '';
+          print('환자 정보 업데이트: $_patientCondition ($_patientSeverity)');
+          notifyListeners();
+        }
+      },
+      onError: (error) => print('환자 정보 구독 오류: $error'),
+    );
   }
 
   // 알림 닫기
   void dismissAlert() {
-    showEmergencyAlert = false;
+    if (_isDisposed) return;
+    _showEmergencyAlert = false;
     notifyListeners();
   }
 
-  // 지도 컨트롤러 설정
+  // 지도 컨트롤러 설정 (최적화된 버전)
   void setMapController(GoogleMapController controller) {
-    mapController = controller;
+    if (_isDisposed) return;
+
+    _mapController = controller;
 
     // 현재 위치로 카메라 이동
-    if (currentLocationCoord != null) {
-      controller.animateCamera(
-        CameraUpdate.newLatLngZoom(currentLocationCoord!, 15),
-      );
+    if (_currentLocationCoord != null) {
+      _updateCameraPosition(_currentLocationCoord!);
     }
 
     notifyListeners();
   }
 
+  // 메모리 정리 (최적화된 버전)
   @override
   void dispose() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
+    // 타이머 정리
+    _addressUpdateTimer?.cancel();
+    _cameraUpdateTimer?.cancel();
+
+    // 스트림 구독 정리
     _locationSubscription?.cancel();
     _alertSubscription?.cancel();
-    mapController?.dispose();
+    _locationSyncSubscription?.cancel();
+    _patientInfoSubscription?.cancel();
+
+    // 지도 컨트롤러 정리
+    _mapController?.dispose();
+
+    print('RegularVehicleViewModel 정리 완료');
     super.dispose();
   }
 }
