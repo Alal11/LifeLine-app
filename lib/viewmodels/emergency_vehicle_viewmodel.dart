@@ -23,11 +23,11 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   final OptimalRouteService _optimalRouteService = OptimalRouteService();
 
   final TextEditingController patientLocationController =
-      TextEditingController();
+  TextEditingController();
   final TextEditingController hospitalLocationController =
-      TextEditingController();
+  TextEditingController();
   final TextEditingController currentLocationController =
-      TextEditingController();
+  TextEditingController();
 
   // 지도 관련 변수
   GoogleMapController? mapController;
@@ -77,6 +77,11 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   List<Hospital> recommendedHospitals = [];
   Hospital? selectedHospital;
   bool isLoadingHospitals = false;
+
+  // 지역별 병원 필터링을 위한 변수 추가
+  List<Hospital> _allHospitals = []; // 모든 병원 목록 (필터링 전)
+  List<String> availableRegions = []; // 가용 지역 목록
+  String? selectedRegion; // 선택된 지역
 
   // 경로 정보
   EmergencyRoute? currentRoute;
@@ -180,6 +185,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       print('위치 정보를 가져오는데 실패했습니다: $e');
     }
   }
+
   // 공유 상태 로드
   Future<void> _loadSharedState() async {
     // 실제 구현에서는 SharedPreferences나 다른 상태 저장소에서 데이터 로드
@@ -218,7 +224,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       if (markers.isNotEmpty) {
         final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
         updatedMarkers.removeWhere(
-          (marker) => marker.markerId == const MarkerId('current_location'),
+              (marker) => marker.markerId == const MarkerId('current_location'),
         );
         updatedMarkers.add(
           Marker(
@@ -264,7 +270,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         // 환자 위치 마커 업데이트
         Set<Marker> updatedMarkers = Set<Marker>.from(markers);
         updatedMarkers.removeWhere(
-          (marker) => marker.markerId == MarkerId('patient_location'),
+              (marker) => marker.markerId == MarkerId('patient_location'),
         );
         updatedMarkers.add(
           Marker(
@@ -316,6 +322,139 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   void updatePatientSeverity(String severity) {
     patientSeverity = severity;
     notifyListeners();
+  }
+
+  // 환자 위치의 지역 정보 가져오기 - 개선된 버전
+  Future<String?> _getPatientRegion() async {
+    if (patientLocationCoord == null) return null;
+
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        patientLocationCoord!.latitude,
+        patientLocationCoord!.longitude,
+        localeIdentifier: 'ko_KR',
+      );
+
+      if (placemarks.isNotEmpty) {
+        String? administrativeArea = placemarks.first.administrativeArea;
+        print('환자 위치 행정구역: $administrativeArea'); // 디버깅용
+        return administrativeArea;
+      }
+    } catch (e) {
+      print('주소 변환 오류: $e');
+    }
+
+    return null;
+  }
+
+  // 가용한 지역 목록 추출
+  List<String> _extractAvailableRegions(List<Hospital> hospitals) {
+    final Set<String> regions = {};
+
+    for (var hospital in hospitals) {
+      if (hospital.region != null && hospital.region!.isNotEmpty) {
+        regions.add(hospital.region!);
+      }
+    }
+
+    return regions.toList()..sort();
+  }
+
+  // 선택된 지역에 따라 병원 필터링
+  void _filterHospitalsByRegion() {
+    if (selectedRegion == null || _allHospitals.isEmpty) return;
+
+    if (selectedRegion == '전체') {
+      recommendedHospitals = List.from(_allHospitals);
+    } else {
+      recommendedHospitals = _allHospitals
+          .where((hospital) => hospital.region == selectedRegion)
+          .toList();
+    }
+
+    // 거리순 정렬 유지
+    recommendedHospitals.sort((a, b) => a.distance.compareTo(b.distance));
+
+    notifyListeners();
+  }
+
+  // 지역 선택 변경
+  void changeRegion(String region) {
+    if (selectedRegion == region) return;
+
+    selectedRegion = region;
+    _filterHospitalsByRegion();
+
+    // 선택된 지역의 첫 번째 병원으로 선택 변경
+    if (recommendedHospitals.isNotEmpty) {
+      selectHospital(recommendedHospitals.first);
+    } else {
+      selectedHospital = null;
+      hospitalLocation = '';
+      hospitalLocationCoord = null;
+    }
+
+    _updateHospitalMarkers();
+    notifyListeners();
+  }
+
+  // 환자 상태 기반 추천 병원 로드 - 전국 지역 대응 강화
+  Future<void> loadRecommendedHospitals() async {
+    if (patientLocationCoord == null ||
+        patientCondition.isEmpty ||
+        patientSeverity.isEmpty) {
+      return;
+    }
+
+    isLoadingHospitals = true;
+    notifyListeners();
+
+    try {
+      // 환자 위치의 지역 정보 먼저 확인
+      final patientRegion = await _getPatientRegion();
+      print('환자 지역: $patientRegion');
+
+      // 모든 병원 목록 가져오기 (지역별 맞춤 검색)
+      _allHospitals = await _optimalRouteService.recommendHospitals(
+        patientLocationCoord!,
+        patientCondition,
+        patientSeverity,
+        searchRadius: _optimalRouteService.getRegionSearchRadius(patientLocationCoord!),
+      );
+
+      print('지역 필터링 후 병원 수: ${_allHospitals.length}');
+
+      // 가용한 지역 목록 추출
+      availableRegions = _extractAvailableRegions(_allHospitals);
+
+      // 환자 위치의 지역이 있으면 해당 지역으로 선택, 없으면 첫 번째 지역 선택
+      if (patientRegion != null && availableRegions.contains(patientRegion)) {
+        selectedRegion = patientRegion;
+      } else if (availableRegions.isNotEmpty) {
+        selectedRegion = availableRegions.first;
+      }
+
+      // 선택된 지역에 맞춰 병원 필터링
+      _filterHospitalsByRegion();
+
+      // 추천 병원이 있으면 첫 번째 병원 선택
+      if (recommendedHospitals.isNotEmpty) {
+        selectedHospital = recommendedHospitals.first;
+        hospitalLocation = selectedHospital!.name;
+        hospitalLocationCoord = LatLng(
+          selectedHospital!.latitude,
+          selectedHospital!.longitude,
+        );
+
+        // 병원 마커 표시
+        _updateHospitalMarkers();
+      }
+    } catch (e) {
+      print('병원 추천 로드 중 오류 발생: $e');
+    } finally {
+      isLoadingHospitals = false;
+      notifyListeners();
+    }
   }
 
   // 응급 모드 활성화
@@ -500,10 +639,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       // 주변 차량에 알림 전송
       final notifiedCount = await _notificationService
           .sendEmergencyAlertToNearbyVehicles(
-            'dummy_route_id',
-            '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
-            1.0, // 1km 반경
-          );
+        'dummy_route_id',
+        '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
+        1.0, // 1km 반경
+      );
 
       // 기타 정보 업데이트
       emergencyMode = true;
@@ -524,8 +663,8 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
         // 거리(m)를 기반으로 예상 시간 계산 (응급 차량 속도 60km/h 가정)
         int minutes =
-            (totalDistance / 1000 / 60 * 60)
-                .round(); // m -> km -> 시간(60km/h) -> 분
+        (totalDistance / 1000 / 60 * 60)
+            .round(); // m -> km -> 시간(60km/h) -> 분
         estimatedTime = '$minutes분';
       }
 
@@ -536,7 +675,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         destination: destinationName,
         estimatedTime: estimatedTime,
         approachDirection:
-            routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
+        routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
         notifiedVehicles: notifiedVehicles,
         patientCondition: patientCondition,
         patientSeverity: patientSeverity,
@@ -564,10 +703,10 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     double dLon = lon2 - lon1;
     double a =
         math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
+            math.cos(lat1) *
+                math.cos(lat2) *
+                math.sin(dLon / 2) *
+                math.sin(dLon / 2);
     double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadius * c;
@@ -708,7 +847,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           origin.latitude + (destination.latitude - origin.latitude) * fraction;
       double lng =
           origin.longitude +
-          (destination.longitude - origin.longitude) * fraction;
+              (destination.longitude - origin.longitude) * fraction;
 
       // 약간의 변형 추가 (실제 도로처럼 보이게)
       double variance = 0.001 * math.sin(fraction * math.pi);
@@ -735,7 +874,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: InfoWindow(
           title:
-              '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
+          '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
         ),
       ),
     };
@@ -752,45 +891,6 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
     // 공유 서비스를 통해 알림 취소
     _sharedService.cancelEmergencyAlert();
-  }
-
-  // 환자 상태 기반 추천 병원 로드
-  Future<void> loadRecommendedHospitals() async {
-    // 환자 위치와 상태가 모두 입력되어 있는지 확인
-    if (patientLocationCoord == null ||
-        patientCondition.isEmpty ||
-        patientSeverity.isEmpty) {
-      return;
-    }
-
-    isLoadingHospitals = true;
-    notifyListeners();
-
-    try {
-      recommendedHospitals = await _optimalRouteService.recommendHospitals(
-        patientLocationCoord!,
-        patientCondition,
-        patientSeverity,
-      );
-
-      // 추천 병원이 있으면 첫 번째 병원 선택
-      if (recommendedHospitals.isNotEmpty) {
-        selectedHospital = recommendedHospitals.first;
-        hospitalLocation = selectedHospital!.name;
-        hospitalLocationCoord = LatLng(
-          selectedHospital!.latitude,
-          selectedHospital!.longitude,
-        );
-
-        // 병원 마커 표시
-        _updateHospitalMarkers();
-      }
-    } catch (e) {
-      print('병원 추천 로드 중 오류 발생: $e');
-    } finally {
-      isLoadingHospitals = false;
-      notifyListeners();
-    }
   }
 
   // 추천 병원 선택
@@ -810,7 +910,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     // 현재 마커에서 병원 마커만 제거
     final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
     updatedMarkers.removeWhere(
-      (marker) => marker.markerId.value.startsWith('hospital_'),
+          (marker) => marker.markerId.value.startsWith('hospital_'),
     );
 
     // 모든 추천 병원 마커 추가
@@ -828,7 +928,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           infoWindow: InfoWindow(
             title: hospital.name,
             snippet:
-                '병상: ${hospital.availableBeds}개 | 예상 시간: ${(hospital.estimatedTimeSeconds / 60).round()}분',
+            '병상: ${hospital.availableBeds}개 | 예상 시간: ${(hospital.estimatedTimeSeconds / 60).round()}분',
           ),
         ),
       );
@@ -843,26 +943,26 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         final LatLngBounds bounds = LatLngBounds(
           southwest: LatLng(
             math.min(
-                  patientLocationCoord!.latitude,
-                  selectedHospital!.latitude,
-                ) -
+              patientLocationCoord!.latitude,
+              selectedHospital!.latitude,
+            ) -
                 0.01,
             math.min(
-                  patientLocationCoord!.longitude,
-                  selectedHospital!.longitude,
-                ) -
+              patientLocationCoord!.longitude,
+              selectedHospital!.longitude,
+            ) -
                 0.01,
           ),
           northeast: LatLng(
             math.max(
-                  patientLocationCoord!.latitude,
-                  selectedHospital!.latitude,
-                ) +
+              patientLocationCoord!.latitude,
+              selectedHospital!.latitude,
+            ) +
                 0.01,
             math.max(
-                  patientLocationCoord!.longitude,
-                  selectedHospital!.longitude,
-                ) +
+              patientLocationCoord!.longitude,
+              selectedHospital!.longitude,
+            ) +
                 0.01,
           ),
         );

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' show Random, cos, pi, max, min;
-import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -71,15 +70,12 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
   void initState() {
     super.initState();
     // 초기 위치 설정
-    developer.log('LocationSelectionScreen - initState');
     currentLocationCoord = widget.initialLocation ?? const LatLng(37.5665, 126.9780);
-    developer.log('초기 위치: $currentLocationCoord');
     _updateMarker();
   }
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
-    developer.log('지도 컨트롤러 생성됨');
   }
 
   void _updateMarker() {
@@ -94,12 +90,10 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
           ),
         };
       });
-      developer.log('마커 업데이트: ${currentLocationCoord!.latitude}, ${currentLocationCoord!.longitude}');
     }
   }
 
   void _updateLocation(LatLng newLocation) {
-    developer.log('위치 업데이트: ${newLocation.latitude}, ${newLocation.longitude}');
     setState(() {
       currentLocationCoord = newLocation;
 
@@ -124,7 +118,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
       setState(() {
         isLoading = true;
       });
-      developer.log('현재 위치 가져오기 시작');
 
       // 위치 권한 확인 및 요청
       LocationPermission permission = await Geolocator.checkPermission();
@@ -137,7 +130,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
           setState(() {
             isLoading = false;
           });
-          developer.log('위치 권한 거부됨');
           return;
         }
       }
@@ -150,13 +142,11 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
         setState(() {
           isLoading = false;
         });
-        developer.log('위치 권한 영구 거부됨');
         return;
       }
 
       // 위치 가져오기
       Position position = await Geolocator.getCurrentPosition();
-      developer.log('현재 위치 받음: ${position.latitude}, ${position.longitude}');
       _updateLocation(LatLng(position.latitude, position.longitude));
 
       setState(() {
@@ -166,7 +156,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
       setState(() {
         isLoading = false;
       });
-      developer.log('위치 가져오기 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('위치를 가져오는 중 오류: $e')),
       );
@@ -187,7 +176,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
     newLat = max(33.0, min(38.0, newLat));
     newLng = max(125.0, min(132.0, newLng));
 
-    developer.log('랜덤 위치 생성: $newLat, $newLng');
     _updateLocation(LatLng(newLat, newLng));
   }
 
@@ -198,12 +186,10 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
         // 접기
         bottomSheetHeight = 200.0;
         isBottomSheetExpanded = false;
-        developer.log('하단 시트 접기: $bottomSheetHeight');
       } else {
         // 펼치기
         bottomSheetHeight = 400.0;
         isBottomSheetExpanded = true;
-        developer.log('하단 시트 펼치기: $bottomSheetHeight');
       }
     });
   }
@@ -219,7 +205,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
             icon: const Icon(Icons.check),
             onPressed: () {
               // 선택한 위치를 원래 화면으로 전달하고 돌아가기
-              developer.log('위치 선택 완료: ${currentLocationCoord!.latitude}, ${currentLocationCoord!.longitude}');
               Navigator.pop(context, currentLocationCoord);
             },
           ),
@@ -241,7 +226,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
             mapType: MapType.normal,
             onTap: (LatLng position) {
               // 지도 탭하여 위치 변경
-              developer.log('지도 탭 위치: ${position.latitude}, ${position.longitude}');
               _updateLocation(position);
             },
           ),
@@ -337,7 +321,6 @@ class _LocationSelectionScreenState extends State<LocationSelectionScreen> {
                             '${location.coordinates.latitude.toStringAsFixed(4)}, ${location.coordinates.longitude.toStringAsFixed(4)}',
                           ),
                           onTap: () {
-                            developer.log('목록에서 위치 선택: ${location.name}');
                             _updateLocation(location.coordinates);
                           },
                         );
