@@ -28,12 +28,9 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     sharedLocationService = service;
   }
 
-  final TextEditingController patientLocationController =
-      TextEditingController();
-  final TextEditingController hospitalLocationController =
-      TextEditingController();
-  final TextEditingController currentLocationController =
-      TextEditingController();
+  final TextEditingController patientLocationController = TextEditingController();
+  final TextEditingController hospitalLocationController = TextEditingController();
+  final TextEditingController currentLocationController = TextEditingController();
 
   // 지도 관련 변수
   GoogleMapController? mapController;
@@ -48,7 +45,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
   // 상태 변수들
   bool emergencyMode = false;
-  bool showAlert = false;
+  bool _showAlert = false; // 🔥 private으로 변경
   bool isCalculatingRoute = false;
   String routeCalculationError = '';
   EmergencyRouteStatus routeStatus = EmergencyRouteStatus.ready;
@@ -99,7 +96,31 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   LatLng? patientLocationCoord;
   LatLng? hospitalLocationCoord;
 
+  // 🔥 showAlert의 getter와 setter 추가
+  bool get showAlert => _showAlert;
+
+  set showAlert(bool value) {
+    _showAlert = value;
+    notifyListeners();
+  }
+
+  // 🔥 알림창만 닫기 메서드 추가
+  void dismissAlert() {
+    _showAlert = false;
+    notifyListeners();
+  }
+
   // 초기화
+  Future<void> initialize() async {
+    await _initializeLocation();
+    await _loadSharedState();
+
+    // 컨트롤러 초기화 및 연결
+    currentLocationController.text = currentLocation;
+    patientLocationController.text = patientLocation;
+    hospitalLocationController.text = hospitalLocation;
+  }
+
   // 🔥 모든 데이터 초기화 메서드 추가
   void resetAllData() {
     // 응급 모드 비활성화
@@ -138,7 +159,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
 
     // 상태 플래그 초기화
     emergencyMode = false;
-    showAlert = false;
+    _showAlert = false;
     isCalculatingRoute = false;
     routeCalculationError = '';
     routeStatus = EmergencyRouteStatus.ready;
@@ -151,8 +172,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           position: currentLocationCoord!,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: InfoWindow(
-            title:
-                '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
+            title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
           ),
         ),
       };
@@ -172,17 +192,6 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  Future<void> initialize() async {
-    await _initializeLocation();
-    await _loadSharedState();
-
-    // 컨트롤러 초기화 및 연결
-    currentLocationController.text = currentLocation;
-    patientLocationController.text = patientLocation;
-    hospitalLocationController.text = hospitalLocation;
-  }
-
   // 위치 초기화
   Future<void> _initializeLocation() async {
     try {
@@ -194,8 +203,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       }
 
       // 위치 권한 확인
-      geo.LocationPermission permission =
-          await geo.Geolocator.checkPermission();
+      geo.LocationPermission permission = await geo.Geolocator.checkPermission();
       if (permission == geo.LocationPermission.denied) {
         permission = await geo.Geolocator.requestPermission();
         if (permission == geo.LocationPermission.denied) {
@@ -246,8 +254,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           position: currentLocationCoord!,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: InfoWindow(
-            title:
-                '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
+            title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
           ),
         ),
       };
@@ -309,7 +316,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       if (markers.isNotEmpty) {
         final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
         updatedMarkers.removeWhere(
-          (marker) => marker.markerId == const MarkerId('current_location'),
+              (marker) => marker.markerId == const MarkerId('current_location'),
         );
         updatedMarkers.add(
           Marker(
@@ -361,7 +368,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         // 환자 위치 마커 업데이트
         Set<Marker> updatedMarkers = Set<Marker>.from(markers);
         updatedMarkers.removeWhere(
-          (marker) => marker.markerId == MarkerId('patient_location'),
+              (marker) => marker.markerId == MarkerId('patient_location'),
         );
         updatedMarkers.add(
           Marker(
@@ -470,10 +477,9 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     if (selectedRegion == '전체') {
       recommendedHospitals = List.from(_allHospitals);
     } else {
-      recommendedHospitals =
-          _allHospitals
-              .where((hospital) => hospital.region == selectedRegion)
-              .toList();
+      recommendedHospitals = _allHospitals
+          .where((hospital) => hospital.region == selectedRegion)
+          .toList();
     }
 
     // 거리순 정렬 유지
@@ -748,16 +754,16 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       // 주변 차량에 알림 전송
       final notifiedCount = await _notificationService
           .sendEmergencyAlertToNearbyVehicles(
-            'dummy_route_id',
-            '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
-            1.0, // 1km 반경
-          );
+        'dummy_route_id',
+        '$patientCondition ($patientSeverity) 환자 이송 중입니다. 길을 비켜주세요.',
+        1.0, // 1km 반경
+      );
 
       // 기타 정보 업데이트
       emergencyMode = true;
       estimatedTime = '계산 중...'; // 나중에 업데이트
       notifiedVehicles = notifiedCount;
-      showAlert = true;
+      _showAlert = true; // 🔥 private 변수 사용
 
       // 실제 경로 데이터를 기반으로 예상 시간 계산
       if (routePoints.isNotEmpty) {
@@ -771,9 +777,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         }
 
         // 거리(m)를 기반으로 예상 시간 계산 (응급 차량 속도 60km/h 가정)
-        int minutes =
-            (totalDistance / 1000 / 60 * 60)
-                .round(); // m -> km -> 시간(60km/h) -> 분
+        int minutes = (totalDistance / 1000 / 60 * 60).round(); // m -> km -> 시간(60km/h) -> 분
         estimatedTime = '$minutes분';
       }
 
@@ -783,8 +787,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       _sharedService.broadcastEmergencyAlert(
         destination: destinationName,
         estimatedTime: estimatedTime,
-        approachDirection:
-            routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
+        approachDirection: routePhase == 'pickup' ? '$currentLocation에서 환자 방향' : '환자에서 병원 방향',
         notifiedVehicles: notifiedVehicles,
         patientCondition: patientCondition,
         patientSeverity: patientSeverity,
@@ -810,137 +813,11 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     // Haversine 공식
     double dLat = lat2 - lat1;
     double dLon = lon2 - lon1;
-    double a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
+    double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dLon / 2) * math.sin(dLon / 2);
     double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadius * c;
-  }
-
-  // 지도에 경로 표시
-  void _displayRoute(LatLng origin, LatLng destination) async {
-    // 마커 생성
-    final originMarker = Marker(
-      markerId: const MarkerId('origin'),
-      position: origin,
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      infoWindow: InfoWindow(
-        title: routePhase == 'pickup' ? '출발 위치: $currentLocation' : '환자 위치',
-      ),
-    );
-
-    final destinationMarker = Marker(
-      markerId: const MarkerId('destination'),
-      position: destination,
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-      infoWindow: InfoWindow(title: routePhase == 'pickup' ? '환자 위치' : '병원'),
-    );
-
-    // 마커만 먼저 표시 (로딩 상태 표시)
-    markers = {originMarker, destinationMarker};
-    polylines = {};
-    notifyListeners();
-
-    try {
-      // 1. OptimalRouteService를 사용하여 실제 경로 가져오기
-      List<LatLng> routePoints;
-
-      // 이미 경로 계산이 된 경우
-      if (currentRoute != null &&
-          currentRoute!.points != null &&
-          currentRoute!.points!.isNotEmpty) {
-        routePoints = currentRoute!.points!;
-      } else {
-        // 경로를 계산해야 하는 경우
-        final routeData = await _routeService.calculateOptimalRoute(
-          origin,
-          destination,
-          isEmergency: true,
-        );
-        routePoints = routeData['route_points'] as List<LatLng>;
-      }
-
-      // 폴리라인 생성
-      final polyline = Polyline(
-        polylineId: const PolylineId('route'),
-        points: routePoints,
-        color: Colors.blue,
-        width: 5,
-      );
-
-      // 마커와 폴리라인 업데이트
-      markers = {originMarker, destinationMarker};
-      polylines = {polyline};
-      notifyListeners();
-
-      // 경로가 모두 보이도록 카메라 위치 조정
-      // 경로 포인트를 모두 포함하는 경계 계산
-      double minLat = double.infinity;
-      double maxLat = -double.infinity;
-      double minLng = double.infinity;
-      double maxLng = -double.infinity;
-
-      for (var point in routePoints) {
-        minLat = math.min(minLat, point.latitude);
-        maxLat = math.max(maxLat, point.latitude);
-        minLng = math.min(minLng, point.longitude);
-        maxLng = math.max(maxLng, point.longitude);
-      }
-
-      // 경계에 패딩 추가
-      minLat -= 0.01;
-      maxLat += 0.01;
-      minLng -= 0.01;
-      maxLng += 0.01;
-
-      mapController?.animateCamera(
-        CameraUpdate.newLatLngBounds(
-          LatLngBounds(
-            southwest: LatLng(minLat, minLng),
-            northeast: LatLng(maxLat, maxLng),
-          ),
-          100, // padding
-        ),
-      );
-    } catch (e) {
-      print('경로 표시 중 오류 발생: $e');
-
-      // 오류 발생 시 더미 경로라도 표시
-      List<LatLng> dummyRoute = _generateRoutePoints(origin, destination);
-
-      // 폴리라인 생성
-      final polyline = Polyline(
-        polylineId: const PolylineId('route'),
-        points: dummyRoute,
-        color: Colors.blue,
-        width: 5,
-      );
-
-      markers = {originMarker, destinationMarker};
-      polylines = {polyline};
-      notifyListeners();
-
-      // 경로가 모두 보이도록 카메라 위치 조정
-      mapController?.animateCamera(
-        CameraUpdate.newLatLngBounds(
-          LatLngBounds(
-            southwest: LatLng(
-              math.min(origin.latitude, destination.latitude) - 0.01,
-              math.min(origin.longitude, destination.longitude) - 0.01,
-            ),
-            northeast: LatLng(
-              math.max(origin.latitude, destination.latitude) + 0.01,
-              math.max(origin.longitude, destination.longitude) + 0.01,
-            ),
-          ),
-          100, // padding
-        ),
-      );
-    }
   }
 
   // 더미 경로 포인트 생성 (실제로는 API로 대체)
@@ -952,11 +829,8 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     const int steps = 5;
     for (int i = 1; i < steps; i++) {
       double fraction = i / steps;
-      double lat =
-          origin.latitude + (destination.latitude - origin.latitude) * fraction;
-      double lng =
-          origin.longitude +
-          (destination.longitude - origin.longitude) * fraction;
+      double lat = origin.latitude + (destination.latitude - origin.latitude) * fraction;
+      double lng = origin.longitude + (destination.longitude - origin.longitude) * fraction;
 
       // 약간의 변형 추가 (실제 도로처럼 보이게)
       double variance = 0.001 * math.sin(fraction * math.pi);
@@ -973,7 +847,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
   // 응급 모드 비활성화
   void deactivateEmergencyMode() {
     emergencyMode = false;
-    showAlert = false;
+    _showAlert = false; // 🔥 private 변수 사용
 
     // 지도 마커와 경로 초기화
     markers = {
@@ -982,8 +856,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
         position: currentLocationCoord!,
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         infoWindow: InfoWindow(
-          title:
-              '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
+          title: '현재 위치${currentLocation.isNotEmpty ? ": $currentLocation" : ""}',
         ),
       ),
     };
@@ -1019,7 +892,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
     // 현재 마커에서 병원 마커만 제거
     final Set<Marker> updatedMarkers = Set<Marker>.from(markers);
     updatedMarkers.removeWhere(
-      (marker) => marker.markerId.value.startsWith('hospital_'),
+          (marker) => marker.markerId.value.startsWith('hospital_'),
     );
 
     // 모든 추천 병원 마커 추가
@@ -1036,8 +909,7 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
           ),
           infoWindow: InfoWindow(
             title: hospital.name,
-            snippet:
-                '병상: ${hospital.availableBeds}개 | 예상 시간: ${(hospital.estimatedTimeSeconds / 60).round()}분',
+            snippet: '병상: ${hospital.availableBeds}개 | 예상 시간: ${(hospital.estimatedTimeSeconds / 60).round()}분',
           ),
         ),
       );
@@ -1051,28 +923,12 @@ class EmergencyVehicleViewModel extends ChangeNotifier {
       if (patientLocationCoord != null) {
         final LatLngBounds bounds = LatLngBounds(
           southwest: LatLng(
-            math.min(
-                  patientLocationCoord!.latitude,
-                  selectedHospital!.latitude,
-                ) -
-                0.01,
-            math.min(
-                  patientLocationCoord!.longitude,
-                  selectedHospital!.longitude,
-                ) -
-                0.01,
+            math.min(patientLocationCoord!.latitude, selectedHospital!.latitude) - 0.01,
+            math.min(patientLocationCoord!.longitude, selectedHospital!.longitude) - 0.01,
           ),
           northeast: LatLng(
-            math.max(
-                  patientLocationCoord!.latitude,
-                  selectedHospital!.latitude,
-                ) +
-                0.01,
-            math.max(
-                  patientLocationCoord!.longitude,
-                  selectedHospital!.longitude,
-                ) +
-                0.01,
+            math.max(patientLocationCoord!.latitude, selectedHospital!.latitude) + 0.01,
+            math.max(patientLocationCoord!.longitude, selectedHospital!.longitude) + 0.01,
           ),
         );
 

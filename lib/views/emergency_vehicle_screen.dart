@@ -25,169 +25,243 @@ class _EmergencyVehicleScreenContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<EmergencyVehicleViewModel>(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final appBarHeight = AppBar().preferredSize.height;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final bottomNavHeight = 80.0; // BottomNavigationBar 예상 높이
 
-    // 사용 가능한 화면 높이 계산
-    final availableHeight = screenHeight - appBarHeight - statusBarHeight - bottomNavHeight;
+    // 🔥 전체 화면을 SingleChildScrollView로 감싸서 키보드 대응
+    return SingleChildScrollView(
+      // 🔥 키보드가 올라와도 스크롤 가능하도록 설정
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        children: [
+          // 🔥 지도 영역 - 적당한 크기로 조정
+          Container(
+            height: 350, // 🔥 지도 크기를 키움 (300px -> 350px)
+            margin: const EdgeInsets.all(16.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  // Google Map
+                  GoogleMap(
+                    initialCameraPosition: viewModel.initialCameraPosition,
+                    onMapCreated: (controller) {
+                      viewModel.setMapController(controller);
+                    },
+                    markers: viewModel.markers,
+                    polylines: viewModel.polylines,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    zoomControlsEnabled: true,
+                    zoomGesturesEnabled: true,
+                    scrollGesturesEnabled: true,
+                    rotateGesturesEnabled: true,
+                    tiltGesturesEnabled: true,
+                    mapToolbarEnabled: true,
+                  ),
 
-    // 지도 영역의 최소/최대 높이 설정
-    final minMapHeight = availableHeight * 0.4; // 최소 40%
-    final maxMapHeight = availableHeight * 0.7; // 최대 70%
+                  // 🔥 응급 알림 표시 - 닫기 버튼 추가
+                  if (viewModel.showAlert)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Card(
+                        color: Colors.red[50],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.red[200]!),
+                        ),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.warning_amber, color: Colors.red, size: 24),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          '응급 모드 활성화됨',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "주변 차량 ${viewModel.notifiedVehicles}대에 알림이 전송되었습니다",
+                                          style: TextStyle(fontSize: 12, color: Colors.red[700]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // 🔥 닫기 버튼 추가 - 간단한 방법
+                                  GestureDetector(
+                                    onTap: () {
+                                      // 🔥 알림창만 닫기 (응급 모드는 유지)
+                                      viewModel.dismissAlert();
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(Icons.close, color: Colors.red, size: 16),
+                                    ),
+                                  ),
+                                ],
+                              ),
 
-    // 현재 상황에 따른 지도 높이 결정
-    double mapHeight;
-    if (viewModel.emergencyMode) {
-      mapHeight = minMapHeight; // 응급 모드일 때는 더 많은 공간을 하단에
-    } else if (viewModel.routePhase == 'hospital' && viewModel.recommendedHospitals.isNotEmpty) {
-      mapHeight = minMapHeight; // 병원 목록이 있을 때
-    } else {
-      mapHeight = maxMapHeight; // 일반적인 경우
-    }
+                              // 환자 상태 정보 추가
+                              if (viewModel.patientCondition.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                                  decoration: BoxDecoration(
+                                    color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: _getSeverityColor(viewModel.patientSeverity).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _getSeverityColor(viewModel.patientSeverity),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          viewModel.patientSeverity,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "${viewModel.patientCondition} 환자 이송 중",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.red[800],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
 
-    return Column(
-      children: [
-        // 🔥 지도 영역 - 고정 높이
-        Container(
-          height: mapHeight,
-          margin: const EdgeInsets.all(16.0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
-                // Google Map
-                GoogleMap(
-                  initialCameraPosition: viewModel.initialCameraPosition,
-                  onMapCreated: (controller) {
-                    viewModel.setMapController(controller);
-                  },
-                  markers: viewModel.markers,
-                  polylines: viewModel.polylines,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  zoomControlsEnabled: true,
-                  zoomGesturesEnabled: true,
-                  scrollGesturesEnabled: true,
-                  rotateGesturesEnabled: true,
-                  tiltGesturesEnabled: true,
-                  mapToolbarEnabled: true,
-                ),
-
-                // 🔥 응급 알림 표시 - 스크롤 가능하게 개선
-                if (viewModel.showAlert)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    right: 8,
-                    child: SingleChildScrollView(
-                      child: EmergencyAlertCard(
-                        message: "주변 차량 ${viewModel.notifiedVehicles}대에 알림이 전송되었습니다",
+                  // 🔥 응급 모드 경로 정보 - 더 컴팩트하게
+                  if (viewModel.emergencyMode)
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      right: 8,
+                      child: RouteInfoCard(
+                        destination: viewModel.routePhase == 'pickup'
+                            ? viewModel.patientLocation
+                            : viewModel.hospitalLocation,
+                        routePhase: viewModel.routePhase,
+                        estimatedTime: viewModel.estimatedTime,
+                        notifiedVehicles: "${viewModel.notifiedVehicles}대",
                         patientCondition: viewModel.patientCondition,
                         patientSeverity: viewModel.patientSeverity,
                       ),
                     ),
-                  ),
 
-                // 🔥 응급 모드 경로 정보 - 더 컴팩트하게
-                if (viewModel.emergencyMode)
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    right: 8,
-                    child: RouteInfoCard(
-                      destination: viewModel.routePhase == 'pickup'
-                          ? viewModel.patientLocation
-                          : viewModel.hospitalLocation,
-                      routePhase: viewModel.routePhase,
-                      estimatedTime: viewModel.estimatedTime,
-                      notifiedVehicles: "${viewModel.notifiedVehicles}대",
-                      patientCondition: viewModel.patientCondition,
-                      patientSeverity: viewModel.patientSeverity,
-                    ),
-                  ),
-
-                // 병원 검색 로딩
-                if (viewModel.routePhase == 'hospital' && viewModel.isLoadingHospitals)
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    right: 8,
-                    child: Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 12),
-                            Text('최적 병원 검색 중...', style: TextStyle(fontSize: 14)),
-                          ],
+                  // 병원 검색 로딩
+                  if (viewModel.routePhase == 'hospital' && viewModel.isLoadingHospitals)
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      right: 8,
+                      child: Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              SizedBox(width: 12),
+                              Text('최적 병원 검색 중...', style: TextStyle(fontSize: 14)),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        // 🔥 하단 콘텐츠 영역 - 스크롤 가능
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                // 🔥 병원 추천 목록 (지도 밖으로 이동)
-                if (viewModel.routePhase == 'hospital' &&
-                    viewModel.recommendedHospitals.isNotEmpty &&
-                    !viewModel.emergencyMode) ...[
-                  HospitalListCard(
-                    hospitals: viewModel.recommendedHospitals,
-                    selectedHospital: viewModel.selectedHospital,
-                    patientCondition: viewModel.patientCondition,
-                    patientSeverity: viewModel.patientSeverity,
-                    onHospitalSelected: (hospital) {
-                      viewModel.selectHospital(hospital);
-                    },
-                    availableRegions: viewModel.availableRegions,
-                    selectedRegion: viewModel.selectedRegion,
-                    onRegionChanged: (region) {
-                      viewModel.changeRegion(region);
-                    },
-                  ),
-                  const SizedBox(height: 16),
                 ],
-
-                // 🔥 입력 및 제어 영역
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha((0.08 * 255).round()),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: !viewModel.emergencyMode
-                      ? _buildDestinationInput(context, viewModel)
-                      : _buildActiveEmergencyControls(context, viewModel),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+
+          // 🔥 병원 추천 목록 (응급모드가 아닐 때만)
+          if (viewModel.routePhase == 'hospital' &&
+              viewModel.recommendedHospitals.isNotEmpty &&
+              !viewModel.emergencyMode)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: HospitalListCard(
+                hospitals: viewModel.recommendedHospitals,
+                selectedHospital: viewModel.selectedHospital,
+                patientCondition: viewModel.patientCondition,
+                patientSeverity: viewModel.patientSeverity,
+                onHospitalSelected: (hospital) {
+                  viewModel.selectHospital(hospital);
+                },
+                availableRegions: viewModel.availableRegions,
+                selectedRegion: viewModel.selectedRegion,
+                onRegionChanged: (region) {
+                  viewModel.changeRegion(region);
+                },
+              ),
+            ),
+
+          // 🔥 입력 및 제어 영역
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha((0.08 * 255).round()),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: !viewModel.emergencyMode
+                  ? _buildDestinationInput(context, viewModel)
+                  : _buildActiveEmergencyControls(context, viewModel),
+            ),
+          ),
+
+          // 🔥 키보드를 위한 추가 여백
+          const SizedBox(height: 50),
+        ],
+      ),
     );
   }
 
