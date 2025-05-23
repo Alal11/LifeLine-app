@@ -24,157 +24,150 @@ class _RegularVehicleScreenContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<RegularVehicleViewModel>(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final appBarHeight = AppBar().preferredSize.height;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final bottomNavHeight = 80.0;
 
-    // 사용 가능한 화면 높이 계산
-    final availableHeight = screenHeight - appBarHeight - statusBarHeight - bottomNavHeight;
-
-    // 응급 알림 상태에 따른 지도 높이 조정
-    final mapHeight = viewModel.showEmergencyAlert
-        ? availableHeight * 0.45  // 응급 알림 있을 때는 45%
-        : availableHeight * 0.65; // 평상시에는 65%
-
-    return Column(
-      children: [
-        // 🔥 지도 영역 - 고정 높이
-        Container(
-          height: mapHeight,
-          margin: const EdgeInsets.all(16.0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
-                // Google Map
-                GoogleMap(
-                  initialCameraPosition: viewModel.initialCameraPosition,
-                  onMapCreated: (controller) {
-                    viewModel.setMapController(controller);
-                  },
-                  markers: viewModel.markers,
-                  polylines: viewModel.polylines,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
-                  zoomControlsEnabled: true,
-                  zoomGesturesEnabled: true,
-                  scrollGesturesEnabled: true,
-                  rotateGesturesEnabled: true,
-                  tiltGesturesEnabled: true,
-                  mapToolbarEnabled: true,
-                ),
-
-                // 위치 변경 버튼 (우측 상단)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: FloatingActionButton(
-                    mini: true,
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.blue,
-                    elevation: 4,
-                    child: const Icon(Icons.edit_location, size: 20),
-                    onPressed: () async {
-                      final result = await Navigator.push<LatLng>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LocationSelectionScreen(
-                            initialLocation: viewModel.currentLocationCoord,
-                          ),
-                        ),
-                      );
-
-                      if (result != null) {
-                        await viewModel.updateLocation(result);
-                      }
+    // 🔥 전체 화면을 SingleChildScrollView로 감싸서 키보드 대응
+    return SingleChildScrollView(
+      // 🔥 키보드가 올라와도 스크롤 가능하도록 설정
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        children: [
+          // 🔥 지도 영역 - 응급상황 여부에 따라 크기 조정
+          Container(
+            height: viewModel.showEmergencyAlert ? 300 : 400, // 응급상황 시 더 작게
+            margin: const EdgeInsets.all(16.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  // Google Map
+                  GoogleMap(
+                    initialCameraPosition: viewModel.initialCameraPosition,
+                    onMapCreated: (controller) {
+                      viewModel.setMapController(controller);
                     },
+                    markers: viewModel.markers,
+                    polylines: viewModel.polylines,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    zoomControlsEnabled: true,
+                    zoomGesturesEnabled: true,
+                    scrollGesturesEnabled: true,
+                    rotateGesturesEnabled: true,
+                    tiltGesturesEnabled: true,
+                    mapToolbarEnabled: true,
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
 
-        // 🔥 하단 콘텐츠 영역 - 스크롤 가능
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                // 🔥 응급차량 접근 알림 - 더 눈에 띄게 개선
-                if (viewModel.showEmergencyAlert) ...[
-                  EmergencyVehicleAlert(
-                    estimatedArrival: viewModel.estimatedArrival,
-                    approachDirection: viewModel.approachDirection,
-                    destination: viewModel.emergencyDestination,
-                    patientCondition: viewModel.patientCondition,
-                    patientSeverity: viewModel.patientSeverity,
-                    onDismiss: () => viewModel.dismissAlert(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // 🔥 현재 상태 정보 컨테이너
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha((0.08 * 255).round()),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 헤더 부분
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '현재 상태',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  // 위치 변경 버튼 (우측 상단)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: FloatingActionButton(
+                      mini: true,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue,
+                      elevation: 4,
+                      child: const Icon(Icons.edit_location, size: 20),
+                      onPressed: () async {
+                        final result = await Navigator.push<LatLng>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LocationSelectionScreen(
+                              initialLocation: viewModel.currentLocationCoord,
+                            ),
                           ),
-                          // 위치 변경 버튼
-                          _buildLocationChangeButton(context, viewModel),
-                        ],
-                      ),
+                        );
 
-                      const SizedBox(height: 14),
-
-                      // 🔥 응급상황 정보 (있을 경우)
-                      if (viewModel.showEmergencyAlert) ...[
-                        _buildEmergencyInfoCard(viewModel),
-                        const SizedBox(height: 14),
-                      ],
-
-                      // 🔥 현재 위치 및 속도 정보
-                      _buildLocationSpeedInfo(viewModel),
-
-                      const SizedBox(height: 14),
-
-                      // 🔥 상태 메시지
-                      _buildStatusMessage(viewModel),
-                    ],
+                        if (result != null) {
+                          await viewModel.updateLocation(result);
+                        }
+                      },
+                    ),
                   ),
-                ),
-
-                // 🔥 추가 정보나 팁 (응급상황이 없을 때)
-                if (!viewModel.showEmergencyAlert) ...[
-                  const SizedBox(height: 16),
-                  _buildSafetyTipsCard(),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+
+          // 🔥 응급차량 접근 알림 - 더 눈에 띄게 개선
+          if (viewModel.showEmergencyAlert) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: EmergencyVehicleAlert(
+                estimatedArrival: viewModel.estimatedArrival,
+                approachDirection: viewModel.approachDirection,
+                destination: viewModel.emergencyDestination,
+                patientCondition: viewModel.patientCondition,
+                patientSeverity: viewModel.patientSeverity,
+                onDismiss: () => viewModel.dismissAlert(),
+              ),
+            ),
+          ],
+
+          // 🔥 현재 상태 정보 컨테이너
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha((0.08 * 255).round()),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 헤더 부분
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '현재 상태',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      // 위치 변경 버튼
+                      _buildLocationChangeButton(context, viewModel),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // 🔥 응급상황 정보 (있을 경우)
+                  if (viewModel.showEmergencyAlert) ...[
+                    _buildEmergencyInfoCard(viewModel),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // 🔥 현재 위치 및 속도 정보
+                  _buildLocationSpeedInfo(viewModel),
+
+                  const SizedBox(height: 14),
+
+                  // 🔥 상태 메시지
+                  _buildStatusMessage(viewModel),
+                ],
+              ),
+            ),
+          ),
+
+          // 🔥 추가 정보나 팁 (응급상황이 없을 때)
+          if (!viewModel.showEmergencyAlert) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _buildSafetyTipsCard(),
+            ),
+          ],
+
+          // 🔥 키보드를 위한 추가 여백
+          const SizedBox(height: 50),
+        ],
+      ),
     );
   }
 
