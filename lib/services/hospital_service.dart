@@ -102,9 +102,10 @@ class RegionConfig {
 class EmergencyMedicalService {
   static const String _baseUrl =
       'http://apis.data.go.kr/B552657/ErmctInfoInqireService';
-  static const String _serviceKey = 'uJTYl2xqFaLfmL9WJN55JPXdgtm1JLQiXJYRv3UDRwAbsaf3wGLIBDxUTJ0gn54x3eOaJfgIwpzH0l6aZHJefQ%3D%3D'; // 실제 API 키로 교체 필요
+  static const String _serviceKey =
+      'uJTYl2xqFaLfmL9WJN55JPXdgtm1JLQiXJYRv3UDRwAbsaf3wGLIBDxUTJ0gn54x3eOaJfgIwpzH0l6aZHJefQ%3D%3D'; // 실제 API 키로 교체 필요
 
-  // ⭐ 지역 감지를 위한 키워드 맵
+  // 🔥 수정된 지역 감지를 위한 키워드 맵
   final Map<String, String> regionKeywords = {
     // 서울 키워드
     '서울': '서울',
@@ -157,40 +158,78 @@ class EmergencyMedicalService {
     '평택': '경기',
     '화성': '경기',
     '김포': '경기',
-    '광주': '경기', // 경기 광주
-    // 대구 키워드 ⭐
+    '분당': '경기',
+    '일산': '경기',
+
+    // 🔥 대구/경북 키워드 수정
     '대구': '대구',
     'daegu': '대구',
     '대구가톨릭': '대구',
     '계명': '대구',
     '영남': '대구',
 
+    // 경북 키워드 (구미 포함)
+    '경북': '경북',
+    '경상북도': '경북',
+    'gyeongbuk': '경북',
+    '포항': '경북',
+    '경주': '경북',
+    '김천': '경북',
+    '안동': '경북',
+    '구미': '경북', // 🔥 구미는 경북!
+    '영주': '경북',
+    '영천': '경북',
+    '상주': '경북',
+    '문경': '경북',
+    '경산': '경북',
+
     // 부산 키워드
     '부산': '부산',
     'busan': '부산',
     '동아': '부산',
     '인제': '부산',
+    '해운대': '부산',
 
     // 인천 키워드
     '인천': '인천',
     'incheon': '인천',
     '가천': '인천',
+    '부평': '인천',
 
-    // 대전 키워드
+    // 🔥 대전 키워드 수정 (충남 제거!)
     '대전': '대전',
     'daejeon': '대전',
-    '충남': '대전',
     '건양': '대전',
+    '을지': '대전',
 
-    // 광주 키워드
-    '광주': '광주', // 전남 광주
+    // 🔥 충남 키워드 강화 (천안 포함)
+    '충남': '충남',
+    '충청남도': '충남',
+    'chungnam': '충남',
+    '천안': '충남', // 🔥 천안은 충남!
+    '공주': '충남',
+    '보령': '충남',
+    '아산': '충남',
+    '서산': '충남',
+    '논산': '충남',
+    '계룡': '충남',
+    '당진': '충남',
+    '홍성': '충남',
+    '예산': '충남',
+    '태안': '충남',
+    '순천향': '충남', // 순천향대 천안병원
+    '단국': '충남',    // 단국대병원
+
+    // 광주 키워드 (전남 광주)
+    '광주': '광주',
     'gwangju': '광주',
     '조선': '광주',
-    '전남': '광주',
+    '전남대': '광주',
 
     // 울산 키워드
     '울산': '울산',
     'ulsan': '울산',
+    '동강': '울산',
 
     // 세종 키워드
     '세종': '세종',
@@ -215,19 +254,6 @@ class EmergencyMedicalService {
     '충주': '충북',
     '제천': '충북',
 
-    // 충남 키워드
-    '충남': '충남',
-    '충청남도': '충남',
-    'chungnam': '충남',
-    '천안': '충남',
-    '공주': '충남',
-    '보령': '충남',
-    '아산': '충남',
-    '서산': '충남',
-    '논산': '충남',
-    '계룡': '충남',
-    '당진': '충남',
-
     // 전북 키워드
     '전북': '전북',
     '전라북도': '전북',
@@ -238,6 +264,7 @@ class EmergencyMedicalService {
     '정읍': '전북',
     '남원': '전북',
     '김제': '전북',
+    '원광': '전북',
 
     // 전남 키워드
     '전남': '전남',
@@ -248,21 +275,6 @@ class EmergencyMedicalService {
     '순천': '전남',
     '나주': '전남',
     '광양': '전남',
-
-    // 경북 키워드
-    '경북': '경북',
-    '경상북도': '경북',
-    'gyeongbuk': '경북',
-    '포항': '경북',
-    '경주': '경북',
-    '김천': '경북',
-    '안동': '경북',
-    '구미': '경북',
-    '영주': '경북',
-    '영천': '경북',
-    '상주': '경북',
-    '문경': '경북',
-    '경산': '경북',
 
     // 경남 키워드
     '경남': '경남',
@@ -283,7 +295,7 @@ class EmergencyMedicalService {
     'jeju': '제주',
   };
 
-  // ⭐ 전화번호 지역번호로 지역 감지
+  // 전화번호 지역번호로 지역 감지
   String? getRegionFromAreaCode(String areaCode) {
     final Map<String, String> areaCodes = {
       '02': '서울',
@@ -308,56 +320,62 @@ class EmergencyMedicalService {
     return areaCodes[areaCode];
   }
 
-  // ⭐ 개선된 지역 감지 함수
+  // 🔥 수정된 지역 감지 함수
   String? extractRegionFromHospitalData(Map<String, dynamic> hospitalData) {
-    // 1. 병원명에서 지역 추출
+    // 1. 병원명에서 지역 추출 (가장 정확함)
     String? hospitalName = hospitalData['dutyName']?.toString();
     if (hospitalName != null) {
       String hospitalNameLower = hospitalName.toLowerCase();
 
-      // 키워드 매칭으로 지역 감지
-      for (var entry in regionKeywords.entries) {
+      // 🔥 더 정확한 키워드 매칭 (긴 키워드부터 매칭)
+      List<MapEntry<String, String>> sortedKeywords = regionKeywords.entries
+          .toList()
+        ..sort((a, b) => b.key.length.compareTo(a.key.length)); // 긴 키워드 우선
+
+      for (var entry in sortedKeywords) {
         if (hospitalNameLower.contains(entry.key.toLowerCase())) {
-          print(
-            '병원명 "${hospitalName}"에서 키워드 "${entry.key}" 감지 -> ${entry.value} 지역',
-          );
+          print('✅ 병원명 "${hospitalName}"에서 키워드 "${entry.key}" 감지 → ${entry.value} 지역');
           return entry.value;
         }
       }
     }
 
     // 2. 전화번호 지역번호로 지역 추출
-    String? phoneNumber =
-        hospitalData['dutyTel3']?.toString() ??
+    String? phoneNumber = hospitalData['dutyTel3']?.toString() ??
         hospitalData['dutyTel1']?.toString();
-    if (phoneNumber != null) {
+    if (phoneNumber != null && phoneNumber.contains('-')) {
       String areaCode = phoneNumber.split('-')[0];
       String? region = getRegionFromAreaCode(areaCode);
       if (region != null) {
-        print('전화번호 "${phoneNumber}"의 지역번호 "${areaCode}"에서 ${region} 지역 감지');
+        print('✅ 전화번호 "${phoneNumber}" 지역번호 "${areaCode}"에서 ${region} 지역 감지');
         return region;
       }
     }
 
-    // 3. 주소 정보가 있다면 활용
+    // 3. 주소 정보 활용
     String? address = hospitalData['dutyAddr']?.toString();
     if (address != null) {
       String addressLower = address.toLowerCase();
-      for (var entry in regionKeywords.entries) {
+
+      // 주소에서도 긴 키워드부터 매칭
+      List<MapEntry<String, String>> sortedKeywords = regionKeywords.entries
+          .toList()
+        ..sort((a, b) => b.key.length.compareTo(a.key.length));
+
+      for (var entry in sortedKeywords) {
         if (addressLower.contains(entry.key.toLowerCase())) {
-          print('주소 "${address}"에서 키워드 "${entry.key}" 감지 -> ${entry.value} 지역');
+          print('✅ 주소 "${address}"에서 키워드 "${entry.key}" 감지 → ${entry.value} 지역');
           return entry.value;
         }
       }
     }
 
-    print('병원 데이터에서 지역을 감지하지 못했습니다: $hospitalData');
+    print('❌ 병원 데이터에서 지역을 감지하지 못했습니다: ${hospitalData['dutyName']}');
     return null;
   }
 
   // 지역별 설정 가져오기
   Map<String, RegionConfig> getRegionConfigs() {
-    // ⭐ 중복 키 제거: '광주'가 두 번 정의되지 않도록 수정
     return {
       '서울': RegionConfig(
         regionName: '서울특별시',
@@ -444,7 +462,7 @@ class EmergencyMedicalService {
           '기타': 0.5,
         },
       ),
-      '광주': RegionConfig( // ⭐ 한 번만 정의
+      '광주': RegionConfig(
         regionName: '광주광역시',
         searchRadius: 30.0,
         allowedRegions: ['광주광역시', '전라남도'],
@@ -652,7 +670,10 @@ class EmergencyMedicalService {
   }
 
   // 환자 위치의 행정구역 정보 확인
-  Future<String?> _getAdministrativeArea(double latitude, double longitude) async {
+  Future<String?> _getAdministrativeArea(
+      double latitude,
+      double longitude,
+      ) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
         latitude,
@@ -670,12 +691,20 @@ class EmergencyMedicalService {
   }
 
   // 주변 병원 검색 (API + 더미 데이터 조합)
-  Future<List<Hospital>> findNearbyHospitals(double latitude, double longitude, double radiusKm) async {
+  Future<List<Hospital>> findNearbyHospitals(
+      double latitude,
+      double longitude,
+      double radiusKm,
+      ) async {
     List<Hospital> allHospitals = [];
 
     try {
       // 1. 실제 API에서 병원 정보 가져오기
-      final apiHospitals = await _fetchHospitalsFromAPI(latitude, longitude, radiusKm);
+      final apiHospitals = await _fetchHospitalsFromAPI(
+        latitude,
+        longitude,
+        radiusKm,
+      );
       allHospitals.addAll(apiHospitals);
       print('API에서 ${apiHospitals.length}개 병원 정보 가져옴');
     } catch (e) {
@@ -707,10 +736,10 @@ class EmergencyMedicalService {
 
   // 실제 API에서 병원 정보 가져오기
   Future<List<Hospital>> _fetchHospitalsFromAPI(
-    double latitude,
-    double longitude,
-    double radiusKm,
-  ) async {
+      double latitude,
+      double longitude,
+      double radiusKm,
+      ) async {
     try {
       // WGS84 좌표를 이용한 API 호출
       final url = Uri.parse(
@@ -746,12 +775,12 @@ class EmergencyMedicalService {
     }
   }
 
-  // ⭐ 수정된 API 병원 데이터 파싱 함수
+  // API 병원 데이터 파싱 함수
   Future<List<Hospital>> _parseApiHospitals(
-    Map<String, dynamic> apiResponse,
-    double patientLat,
-    double patientLng,
-  ) async {
+      Map<String, dynamic> apiResponse,
+      double patientLat,
+      double patientLng,
+      ) async {
     final List<Hospital> hospitals = [];
 
     try {
@@ -761,7 +790,7 @@ class EmergencyMedicalService {
       List<dynamic> hospitalList = items is List ? items : [items];
 
       for (var item in hospitalList) {
-        // ⭐ 동적 지역 감지 적용
+        // 동적 지역 감지 적용
         String? detectedRegion = extractRegionFromHospitalData(item);
 
         // 좌표 정보 확인
@@ -787,9 +816,8 @@ class EmergencyMedicalService {
             specialties: _parseSpecialties(item),
             hasEmergencyRoom: (item['hvec'] ?? 0) > 0,
             region: detectedRegion,
-            // ⭐ 동적으로 감지된 지역 사용
             phoneNumber:
-                item['dutyTel3']?.toString() ??
+            item['dutyTel3']?.toString() ??
                 item['dutyTel1']?.toString() ??
                 '',
             distance: distance,
@@ -847,11 +875,11 @@ class EmergencyMedicalService {
 
   // 두 지점 간의 거리 계산 (Haversine 공식)
   double _calculateDistance(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
+      double lat1,
+      double lon1,
+      double lat2,
+      double lon2,
+      ) {
     const double earthRadius = 6371000; // 지구 반지름 (미터)
 
     double dLat = (lat2 - lat1) * (math.pi / 180);
@@ -859,10 +887,10 @@ class EmergencyMedicalService {
 
     double a =
         math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1 * (math.pi / 180)) *
-            math.cos(lat2 * (math.pi / 180)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
+            math.cos(lat1 * (math.pi / 180)) *
+                math.cos(lat2 * (math.pi / 180)) *
+                math.sin(dLon / 2) *
+                math.sin(dLon / 2);
 
     double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
@@ -917,6 +945,24 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "서울성모병원",
+          "region": "서울특별시",
+          "phone": "02-2258",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "고려대학교 안암병원",
+          "region": "서울특별시",
+          "phone": "02-920",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
       ],
       '경기': [
         {
@@ -946,6 +992,33 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "아주대학교병원",
+          "region": "경기도",
+          "phone": "031-219",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "경기도의료원 수원병원",
+          "region": "경기도",
+          "phone": "031-288",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "성남중앙병원",
+          "region": "경기도",
+          "phone": "031-738",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
       ],
       '부산': [
         {
@@ -971,6 +1044,33 @@ class EmergencyMedicalService {
           "region": "부산광역시",
           "phone": "051-890",
           "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "고신대학교복음병원",
+          "region": "부산광역시",
+          "phone": "051-990",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "부산의료원",
+          "region": "부산광역시",
+          "phone": "051-607",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "해운대백병원",
+          "region": "부산광역시",
+          "phone": "051-797",
+          "trauma": false,
           "cardiac": true,
           "stroke": true,
           "icu": true,
@@ -1004,6 +1104,33 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "대구의료원",
+          "region": "대구광역시",
+          "phone": "053-560",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "경북대학교병원",
+          "region": "대구광역시",
+          "phone": "053-420",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "대구파티마병원",
+          "region": "대구광역시",
+          "phone": "053-940",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
       ],
       '인천': [
         {
@@ -1023,6 +1150,33 @@ class EmergencyMedicalService {
           "cardiac": true,
           "stroke": true,
           "icu": true,
+        },
+        {
+          "name": "인천의료원",
+          "region": "인천광역시",
+          "phone": "032-580",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "인천성모병원",
+          "region": "인천광역시",
+          "phone": "032-280",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "부평세림병원",
+          "region": "인천광역시",
+          "phone": "032-340",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
         },
       ],
       '광주': [
@@ -1044,6 +1198,33 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "광주기독병원",
+          "region": "광주광역시",
+          "phone": "062-650",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "전남대학교 화순병원",
+          "region": "광주광역시",
+          "phone": "061-379",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "광주보훈병원",
+          "region": "광주광역시",
+          "phone": "062-602",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
       ],
       '대전': [
         {
@@ -1064,6 +1245,33 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "을지대학교병원",
+          "region": "대전광역시",
+          "phone": "042-611",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "대전성모병원",
+          "region": "대전광역시",
+          "phone": "042-220",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "대전보훈병원",
+          "region": "대전광역시",
+          "phone": "042-939",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
       ],
       '울산': [
         {
@@ -1073,6 +1281,33 @@ class EmergencyMedicalService {
           "trauma": true,
           "cardiac": true,
           "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "동강병원",
+          "region": "울산광역시",
+          "phone": "052-241",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "울산의료원",
+          "region": "울산광역시",
+          "phone": "052-219",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "서울아산병원 울산점",
+          "region": "울산광역시",
+          "phone": "052-674",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
           "icu": true,
         },
       ],
@@ -1095,6 +1330,51 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "천안한국병원",
+          "region": "충청남도",
+          "phone": "041-570",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "천안의료원",
+          "region": "충청남도",
+          "phone": "041-570",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "홍성의료원",
+          "region": "충청남도",
+          "phone": "041-630",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "서산의료원",
+          "region": "충청남도",
+          "phone": "041-660",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "공주의료원",
+          "region": "충청남도",
+          "phone": "041-850",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
       ],
       '충북': [
         {
@@ -1105,6 +1385,42 @@ class EmergencyMedicalService {
           "cardiac": true,
           "stroke": true,
           "icu": true,
+        },
+        {
+          "name": "청주의료원",
+          "region": "충청북도",
+          "phone": "043-270",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "청주성모병원",
+          "region": "충청북도",
+          "phone": "043-219",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "제천의료원",
+          "region": "충청북도",
+          "phone": "043-649",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "충주의료원",
+          "region": "충청북도",
+          "phone": "043-857",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
         },
       ],
       '강원': [
@@ -1126,6 +1442,42 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "춘천성심병원",
+          "region": "강원특별자치도",
+          "phone": "033-240",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "강릉아산병원",
+          "region": "강원특별자치도",
+          "phone": "033-610",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "원주의료원",
+          "region": "강원특별자치도",
+          "phone": "033-760",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "속초의료원",
+          "region": "강원특별자치도",
+          "phone": "033-639",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
       ],
       '전북': [
         {
@@ -1136,6 +1488,42 @@ class EmergencyMedicalService {
           "cardiac": true,
           "stroke": true,
           "icu": true,
+        },
+        {
+          "name": "원광대학교병원",
+          "region": "전라북도",
+          "phone": "063-859",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "전주예수병원",
+          "region": "전라북도",
+          "phone": "063-230",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "군산의료원",
+          "region": "전라북도",
+          "phone": "063-445",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
+        {
+          "name": "익산병원",
+          "region": "전라북도",
+          "phone": "063-843",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
         },
       ],
       '전남': [
@@ -1148,6 +1536,42 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "순천향대학교 구미병원",
+          "region": "전라남도",
+          "phone": "061-729",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "여수중앙병원",
+          "region": "전라남도",
+          "phone": "061-680",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "목포중앙병원",
+          "region": "전라남도",
+          "phone": "061-280",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "나주의료원",
+          "region": "전라남도",
+          "phone": "061-330",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
       ],
       '경북': [
         {
@@ -1159,6 +1583,51 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "포항성모병원",
+          "region": "경상북도",
+          "phone": "054-260",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "경주병원",
+          "region": "경상북도",
+          "phone": "054-770",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "구미차병원",
+          "region": "경상북도",
+          "phone": "054-450",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "김천의료원",
+          "region": "경상북도",
+          "phone": "054-420",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "영주의료원",
+          "region": "경상북도",
+          "phone": "054-639",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
       ],
       '경남': [
         {
@@ -1168,6 +1637,51 @@ class EmergencyMedicalService {
           "trauma": true,
           "cardiac": true,
           "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "창원경상대학교병원",
+          "region": "경상남도",
+          "phone": "055-214",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "마산의료원",
+          "region": "경상남도",
+          "phone": "055-249",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "진주의료원",
+          "region": "경상남도",
+          "phone": "055-750",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "통영의료원",
+          "region": "경상남도",
+          "phone": "055-648",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
+        {
+          "name": "김해의료원",
+          "region": "경상남도",
+          "phone": "055-330",
+          "trauma": true,
+          "cardiac": false,
+          "stroke": false,
           "icu": true,
         },
       ],
@@ -1181,55 +1695,125 @@ class EmergencyMedicalService {
           "stroke": true,
           "icu": true,
         },
+        {
+          "name": "제주한라병원",
+          "region": "제주특별자치도",
+          "phone": "064-740",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "제주의료원",
+          "region": "제주특별자치도",
+          "phone": "064-750",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
+        {
+          "name": "서귀포의료원",
+          "region": "제주특별자치도",
+          "phone": "064-730",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": false,
+          "icu": false,
+        },
+        {
+          "name": "제주국제병원",
+          "region": "제주특별자치도",
+          "phone": "064-720",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+      ],
+      '세종': [
+        {
+          "name": "세종충남대학교병원",
+          "region": "세종특별자치시",
+          "phone": "044-995",
+          "trauma": true,
+          "cardiac": true,
+          "stroke": true,
+          "icu": true,
+        },
+        {
+          "name": "세종병원",
+          "region": "세종특별자치시",
+          "phone": "044-856",
+          "trauma": false,
+          "cardiac": true,
+          "stroke": false,
+          "icu": true,
+        },
+        {
+          "name": "세종의료원",
+          "region": "세종특별자치시",
+          "phone": "044-850",
+          "trauma": false,
+          "cardiac": false,
+          "stroke": true,
+          "icu": false,
+        },
       ],
     };
   }
 
-  // ⭐ 수정된 더미 병원 데이터 생성
+  // 🔥 수정된 더미 병원 데이터 생성
   Future<List<Hospital>> _getDummyHospitals(
-    double centerLat,
-    double centerLng,
-  ) async {
-    // 환자 위치의 지역 확인
+      double centerLat,
+      double centerLng,
+      ) async {
+    print('🏥 더미 병원 데이터 생성 시작');
+
+    // 환자 위치의 지역 확인 (주소 기반)
     String? patientRegion = await _getAdministrativeArea(centerLat, centerLng);
     String? regionKey;
 
+    print('📍 환자 위치 주소: $patientRegion');
+
     if (patientRegion != null) {
       String patientRegionLower = patientRegion.toLowerCase();
-      for (var entry in regionKeywords.entries) {
+
+      // 🔥 더 정확한 지역 매칭 (긴 키워드부터)
+      List<MapEntry<String, String>> sortedKeywords = regionKeywords.entries
+          .toList()
+        ..sort((a, b) => b.key.length.compareTo(a.key.length));
+
+      for (var entry in sortedKeywords) {
         if (patientRegionLower.contains(entry.key.toLowerCase())) {
           regionKey = entry.value;
+          print('✅ 주소에서 키워드 "${entry.key}" 매칭 → ${entry.value} 지역');
           break;
         }
       }
     }
 
-    // ⭐ Seoul인 경우 강제로 서울 지역 설정
-    if (regionKey == null &&
-        patientRegion != null &&
-        patientRegion.toLowerCase().contains('seoul')) {
-      regionKey = '서울';
-      print('Seoul 감지하여 강제로 서울 더미 병원 데이터 사용');
+    // 🔥 지역이 감지되지 않으면 좌표 기반으로 추정
+    if (regionKey == null) {
+      regionKey = _estimateRegionByCoordinates(centerLat, centerLng);
+      print('📍 좌표 기반 지역 추정: $regionKey');
     }
+
+    // 🔥 그래도 없으면 서울을 기본값으로 (하지만 로그에 명시)
+    if (regionKey == null) {
+      regionKey = '서울';
+      print('⚠️ 지역 감지 실패 - 서울 기본값 사용');
+    }
+
+    print('🎯 최종 선택된 지역: $regionKey');
 
     final random = math.Random();
     final List<Hospital> dummyHospitals = [];
-
-    // 전국 병원 데이터 가져오기
     final nationalHospitalData = getNationalHospitalData();
 
-    // 해당 지역 병원 데이터 선택
-    List<Map<String, dynamic>> hospitalTypes = [];
-    if (regionKey != null && nationalHospitalData.containsKey(regionKey)) {
-      hospitalTypes = nationalHospitalData[regionKey]!;
-      print('${regionKey} 지역 병원 데이터 사용');
-    } else {
-      // ⭐ 기본값을 서울 데이터로 변경 (충남 대신)
-      hospitalTypes = nationalHospitalData['서울']!;
-      print('기본 서울 병원 데이터 사용');
-    }
-
-    print('검색된 총 병원 수: ${hospitalTypes.length}');
+    List<Map<String, dynamic>> hospitalTypes = nationalHospitalData[regionKey]!;
+    print('🏥 ${regionKey} 지역 병원 ${hospitalTypes.length}개 로드');
 
     // 더미 병원 데이터 생성
     for (int i = 0; i < hospitalTypes.length; i++) {
@@ -1240,8 +1824,7 @@ class EmergencyMedicalService {
       final hospitalLng = centerLng + lngOffset;
 
       final hospitalType = hospitalTypes[i];
-      final distance =
-          math.sqrt(latOffset * latOffset + lngOffset * lngOffset) * 100000;
+      final distance = math.sqrt(latOffset * latOffset + lngOffset * lngOffset) * 100000;
       final availableBeds = math.max(1, (10 - distance / 10000).round());
 
       dummyHospitals.add(
@@ -1268,30 +1851,80 @@ class EmergencyMedicalService {
       );
     }
 
-    print('더미 병원 ${dummyHospitals.length}개 생성 완료');
+    print('✅ ${dummyHospitals.length}개 더미 병원 생성 완료');
     return dummyHospitals;
   }
 
-  // ⭐ 수정된 지역 필터링 - 모든 감지된 지역 허용
+  // 🔥 좌표 기반 지역 추정 함수 추가
+  String? _estimateRegionByCoordinates(double lat, double lng) {
+    // 한국 주요 도시 중심 좌표
+    final Map<String, Map<String, double>> regionCenters = {
+      '서울': {'lat': 37.5665, 'lng': 126.9780},
+      '부산': {'lat': 35.1796, 'lng': 129.0756},
+      '대구': {'lat': 35.8714, 'lng': 128.6014},
+      '인천': {'lat': 37.4563, 'lng': 126.7052},
+      '광주': {'lat': 35.1595, 'lng': 126.8526},
+      '대전': {'lat': 36.3504, 'lng': 127.3845},
+      '울산': {'lat': 35.5384, 'lng': 129.3114},
+      '세종': {'lat': 36.4800, 'lng': 127.2890},
+      '천안': {'lat': 36.8151, 'lng': 127.1139}, // 🔥 천안 = 충남
+      '경기': {'lat': 37.4138, 'lng': 127.5183},
+      '강원': {'lat': 37.8228, 'lng': 128.1555},
+      '충북': {'lat': 36.6355, 'lng': 127.4916},
+      '충남': {'lat': 36.5184, 'lng': 126.8000},
+      '전북': {'lat': 35.7175, 'lng': 127.1530},
+      '전남': {'lat': 34.8679, 'lng': 126.9910},
+      '경북': {'lat': 36.4919, 'lng': 128.8889},
+      '경남': {'lat': 35.4606, 'lng': 128.2132},
+      '제주': {'lat': 33.4996, 'lng': 126.5312},
+    };
+
+    String? nearestRegion;
+    double minDistance = double.infinity;
+
+    for (var entry in regionCenters.entries) {
+      double regionLat = entry.value['lat']!;
+      double regionLng = entry.value['lng']!;
+
+      double distance = math.sqrt(
+          math.pow(lat - regionLat, 2) + math.pow(lng - regionLng, 2)
+      );
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestRegion = entry.key;
+      }
+    }
+
+    // 🔥 천안이 가장 가까우면 충남으로 변환
+    if (nearestRegion == '천안') {
+      nearestRegion = '충남';
+    }
+
+    print('📍 가장 가까운 지역: $nearestRegion (거리: ${minDistance.toStringAsFixed(3)})');
+    return nearestRegion;
+  }
+
+  // 🔥 수정된 지역 필터링 - 모든 감지된 지역 허용
   List<Hospital> _filterHospitalsByDetectedRegions(
-    List<Hospital> hospitals,
-    String? targetRegion,
-  ) {
+      List<Hospital> hospitals,
+      String? targetRegion,
+      ) {
     if (hospitals.isEmpty) return hospitals;
 
     // 감지된 모든 지역 수집
     Set<String> detectedRegions =
-        hospitals
-            .where((h) => h.region != null && h.region!.isNotEmpty)
-            .map((h) => h.region!)
-            .toSet();
+    hospitals
+        .where((h) => h.region != null && h.region!.isNotEmpty)
+        .map((h) => h.region!)
+        .toSet();
 
     print('감지된 지역들: ${detectedRegions.join(", ")}');
 
     // 타겟 지역이 있고 감지된 지역에 포함되어 있으면 해당 지역 우선
     if (targetRegion != null && detectedRegions.contains(targetRegion)) {
       var targetRegionHospitals =
-          hospitals.where((h) => h.region == targetRegion).toList();
+      hospitals.where((h) => h.region == targetRegion).toList();
       print('타겟 지역 $targetRegion의 병원 ${targetRegionHospitals.length}개 우선 반환');
 
       if (targetRegionHospitals.isNotEmpty) {
@@ -1301,22 +1934,22 @@ class EmergencyMedicalService {
 
     // 모든 감지된 지역의 병원들 반환 (지역 정보가 있는 것들만)
     var validHospitals =
-        hospitals
-            .where((h) => h.region != null && h.region!.isNotEmpty)
-            .toList();
+    hospitals
+        .where((h) => h.region != null && h.region!.isNotEmpty)
+        .toList();
     print('지역 정보가 있는 병원 ${validHospitals.length}개 반환');
 
     return validHospitals;
   }
 
-  // ⭐ 수정된 메인 함수 - findOptimalHospitals
+  // 🔥 수정된 메인 함수 - findOptimalHospitals
   Future<List<Hospital>> findOptimalHospitals(
-    double latitude,
-    double longitude,
-    String patientCondition,
-    String patientSeverity, {
-    double? searchRadius,
-  }) async {
+      double latitude,
+      double longitude,
+      String patientCondition,
+      String patientSeverity, {
+        double? searchRadius,
+      }) async {
     print(
       '병원 추천 요청 - 위치: LatLng($latitude, $longitude), 상태: $patientCondition, 중증도: $patientSeverity',
     );
@@ -1342,7 +1975,7 @@ class EmergencyMedicalService {
     // 지역 설정 가져오기
     final regionConfigs = getRegionConfigs();
     RegionConfig? regionConfig =
-        targetRegion != null ? regionConfigs[targetRegion] : null;
+    targetRegion != null ? regionConfigs[targetRegion] : null;
 
     // 검색 반경 결정
     double adjustedRadius;
@@ -1364,7 +1997,7 @@ class EmergencyMedicalService {
     );
     print('검색된 총 병원 수: ${hospitals.length}');
 
-    // ⭐ 동적 지역 필터링 적용
+    // 🔥 동적 지역 필터링 적용
     List<Hospital> regionFilteredHospitals = _filterHospitalsByDetectedRegions(
       hospitals,
       targetRegion,
@@ -1373,26 +2006,26 @@ class EmergencyMedicalService {
 
     // 환자 상태에 따른 적합성 검사
     List<Hospital> suitableHospitals =
-        regionFilteredHospitals.where((hospital) {
-          // 기본 조건: 응급실이 있어야 함
-          if (!hospital.hasEmergencyRoom) return false;
+    regionFilteredHospitals.where((hospital) {
+      // 기본 조건: 응급실이 있어야 함
+      if (!hospital.hasEmergencyRoom) return false;
 
-          // 환자 상태별 특별 조건
-          switch (patientCondition) {
-            case '심장마비':
-              return hospital.canTreatCardiac && hospital.hasICU;
-            case '뇌출혈':
-              return hospital.canTreatStroke && hospital.hasICU;
-            case '다발성 외상':
-              return hospital.canTreatTrauma && hospital.hasICU;
-            case '심한 출혈':
-              return hospital.canTreatTrauma;
-            case '화상':
-              return hospital.hasICU; // 화상은 ICU가 있는 병원
-            default:
-              return true; // 기타 상태는 응급실만 있으면 OK
-          }
-        }).toList();
+      // 환자 상태별 특별 조건
+      switch (patientCondition) {
+        case '심장마비':
+          return hospital.canTreatCardiac && hospital.hasICU;
+        case '뇌출혈':
+          return hospital.canTreatStroke && hospital.hasICU;
+        case '다발성 외상':
+          return hospital.canTreatTrauma && hospital.hasICU;
+        case '심한 출혈':
+          return hospital.canTreatTrauma;
+        case '화상':
+          return hospital.hasICU; // 화상은 ICU가 있는 병원
+        default:
+          return true; // 기타 상태는 응급실만 있으면 OK
+      }
+    }).toList();
 
     print('최종 적합한 병원 수: ${suitableHospitals.length}');
 

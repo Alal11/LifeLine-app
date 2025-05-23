@@ -104,18 +104,26 @@ class HospitalListCard extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   itemCount: availableRegions.length + 1, // "전체" 옵션 추가
                   itemBuilder: (context, index) {
-                    final String region = index == 0 ? '전체' : availableRegions[index - 1];
-                    final isSelected = selectedRegion == region ||
+                    final String region =
+                        index == 0 ? '전체' : availableRegions[index - 1];
+                    final isSelected =
+                        selectedRegion == region ||
                         (index == 0 && selectedRegion == null);
 
                     return GestureDetector(
                       onTap: () => onRegionChanged(region),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12), // 패딩 줄임 (16 -> 12)
-                        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 3), // 마진 줄임
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        // 패딩 줄임 (16 -> 12)
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 3,
+                        ),
+                        // 마진 줄임
                         decoration: BoxDecoration(
                           color: isSelected ? Colors.blue : Colors.white,
-                          borderRadius: BorderRadius.circular(12), // 라운드 줄임 (16 -> 12)
+                          borderRadius: BorderRadius.circular(12),
+                          // 라운드 줄임 (16 -> 12)
                           border: Border.all(
                             color: isSelected ? Colors.blue : Colors.grey[300]!,
                           ),
@@ -125,7 +133,10 @@ class HospitalListCard extends StatelessWidget {
                           region,
                           style: TextStyle(
                             fontSize: 11, // 폰트 사이즈 줄임 (12 -> 11)
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                             color: isSelected ? Colors.white : Colors.grey[700],
                           ),
                         ),
@@ -137,7 +148,6 @@ class HospitalListCard extends StatelessWidget {
             ],
 
             const SizedBox(height: 8), // 간격 줄임 (12 -> 8)
-
             // 병원 목록
             SizedBox(
               height: 120, // 목록의 최대 높이를 줄임 (200 -> 120)
@@ -160,11 +170,11 @@ class HospitalListCard extends StatelessWidget {
                         color: isSelected ? Colors.blue.withOpacity(0.1) : null,
                         borderRadius: BorderRadius.circular(8),
                         border:
-                        isSelected
-                            ? Border.all(
-                          color: Colors.blue.withOpacity(0.4),
-                        )
-                            : null,
+                            isSelected
+                                ? Border.all(
+                                  color: Colors.blue.withOpacity(0.4),
+                                )
+                                : null,
                       ),
                       child: Row(
                         children: [
@@ -175,22 +185,22 @@ class HospitalListCard extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color:
-                              isSelected ? Colors.blue : Colors.grey[200],
+                                  isSelected ? Colors.blue : Colors.grey[200],
                               border: Border.all(
                                 color:
-                                isSelected
-                                    ? Colors.blue
-                                    : Colors.grey[400]!,
+                                    isSelected
+                                        ? Colors.blue
+                                        : Colors.grey[400]!,
                               ),
                             ),
                             child:
-                            isSelected
-                                ? const Icon(
-                              Icons.check,
-                              size: 14,
-                              color: Colors.white,
-                            )
-                                : null,
+                                isSelected
+                                    ? const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
+                                    : null,
                           ),
 
                           const SizedBox(width: 8),
@@ -215,12 +225,19 @@ class HospitalListCard extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 4),
                                     // 지역 표시 추가
-                                    if (hospital.region != null && hospital.region!.isNotEmpty)
+                                    if (hospital.region != null &&
+                                        hospital.region!.isNotEmpty)
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1), // 패딩 줄임
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 3,
+                                          vertical: 1,
+                                        ),
+                                        // 패딩 줄임
                                         decoration: BoxDecoration(
                                           color: Colors.grey[200],
-                                          borderRadius: BorderRadius.circular(3), // 라운드 줄임
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ), // 라운드 줄임
                                         ),
                                         child: Text(
                                           hospital.region!,
@@ -253,21 +270,21 @@ class HospitalListCard extends StatelessWidget {
                                   children: [
                                     Icon(
                                       Icons.king_bed,
-                                      size: 12, // 아이콘 사이즈 줄임 (14 -> 12)
+                                      size: 12,
                                       color: Colors.grey[600],
                                     ),
-                                    const SizedBox(width: 3), // 간격 줄임
+                                    const SizedBox(width: 3),
                                     Text(
                                       '병상 ${hospital.availableBeds}개',
                                       style: TextStyle(
-                                        fontSize: 11, // 폰트 사이즈 줄임 (12 -> 11)
+                                        fontSize: 11,
                                         color: Colors.grey[600],
                                       ),
                                     ),
-                                    const SizedBox(width: 6), // 간격 줄임
+                                    const SizedBox(width: 6),
                                     Icon(
                                       Icons.timer,
-                                      size: 12, // 아이콘 사이즈 줄임
+                                      size: 12,
                                       color: Colors.grey[600],
                                     ),
                                     const SizedBox(width: 3),
@@ -295,6 +312,59 @@ class HospitalListCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.phone,
+                                      size: 12,
+                                      color: Colors.green[600],
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      hospital.phoneNumber,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.green[600],
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    // 🔥 통화 버튼 추가 (선택사항)
+                                    GestureDetector(
+                                      onTap: () {
+                                        // 전화걸기 기능 (url_launcher 패키지 필요)
+                                        // launch('tel:${hospital.phoneNumber}');
+                                        print(
+                                          '${hospital.name}에 전화걸기: ${hospital.phoneNumber}',
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[100],
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.green[300]!,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '통화',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.green[700],
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -310,12 +380,12 @@ class HospitalListCard extends StatelessWidget {
             ),
 
             const SizedBox(height: 6), // 간격 줄임 (8 -> 6)
-
             // 선택된 병원에 대한 추가 정보 (선택된 병원이 있는 경우) - 간단하게 축소
             if (selectedHospital != null) ...[
               const Divider(height: 12), // 높이 줄임
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0), // 패딩 줄임 (8 -> 4)
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                // 패딩 줄임 (8 -> 4)
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -330,9 +400,13 @@ class HospitalListCard extends StatelessWidget {
                         ),
                         const Spacer(),
                         // 지역 정보 표시
-                        if (selectedHospital!.region != null && selectedHospital!.region!.isNotEmpty)
+                        if (selectedHospital!.region != null &&
+                            selectedHospital!.region!.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), // 패딩 줄임
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ), // 패딩 줄임
                             decoration: BoxDecoration(
                               color: Colors.blue[50],
                               borderRadius: BorderRadius.circular(3), // 라운드 줄임

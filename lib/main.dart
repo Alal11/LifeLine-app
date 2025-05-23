@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 🔥 추가
 import 'package:provider/provider.dart';
 import 'package:lifeline/viewmodels/emergency_vehicle_viewmodel.dart';
 import 'package:lifeline/viewmodels/regular_vehicle_viewmodel.dart';
@@ -7,7 +8,39 @@ import 'package:lifeline/views/regular_vehicle_screen.dart';
 import 'package:lifeline/services/shared_location_service.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(RestartWidget(child: const MyApp()));
+}
+
+// 🔥 앱 재시작을 위한 RestartWidget
+class RestartWidget extends StatefulWidget {
+  final Widget child;
+
+  const RestartWidget({Key? key, required this.child}) : super(key: key);
+
+  static void restartApp(BuildContext context) {
+    context.findAncestorStateOfType<_RestartWidgetState>()?.restartApp();
+  }
+
+  @override
+  _RestartWidgetState createState() => _RestartWidgetState();
+}
+
+class _RestartWidgetState extends State<RestartWidget> {
+  Key key = UniqueKey();
+
+  void restartApp() {
+    setState(() {
+      key = UniqueKey();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key: key,
+      child: widget.child,
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -139,7 +172,7 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
               Text('병원: ${viewModel.hospitalLocation}'),
               const SizedBox(height: 10),
               const Text(
-                '환자를 성공적으로 병원에 이송했습니다.\n모든 데이터를 초기화하시겠습니까?',
+                '환자를 성공적으로 병원에 이송했습니다.\n새로운 임무를 시작하시겠습니까?',
                 style: TextStyle(fontSize: 14),
               ),
             ],
@@ -151,12 +184,12 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
             ),
             ElevatedButton(
               onPressed: () {
-                // 🔥 모든 데이터 초기화
-                _resetAllData(context);
                 Navigator.of(context).pop();
+                // 🔥 앱 완전 재시작
+                _restartApp();
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text('미션 완료 및 초기화'),
+              child: const Text('미션 완료'),
             ),
           ],
         );
@@ -164,30 +197,23 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
     );
   }
 
-  // 🔥 모든 데이터 초기화
-  void _resetAllData(BuildContext context) {
-    final emergencyViewModel = Provider.of<EmergencyVehicleViewModel>(context, listen: false);
-    final regularViewModel = Provider.of<RegularVehicleViewModel>(context, listen: false);
+  // 🔥 앱 완전 재시작
+  void _restartApp() {
+    // 🔥 RestartWidget을 사용한 완전 재시작
+    RestartWidget.restartApp(context);
 
-    // 응급차량 데이터 초기화
-    emergencyViewModel.resetAllData();
-
-    // 일반차량 알림 해제
-    if (regularViewModel.showEmergencyAlert) {
-      regularViewModel.dismissAlert();
-    }
-
-    // 첫 번째 탭 (응급차량)으로 이동
-    setState(() {
-      _selectedIndex = 0;
+    // 재시작 후 성공 메시지 표시
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 미션 완료! 새로운 임무를 시작하세요!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ 미션이 완료되었습니다. 모든 데이터가 초기화되었습니다.'),
-        backgroundColor: Colors.green,
-      ),
-    );
   }
 
   @override
